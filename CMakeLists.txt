@@ -1,37 +1,26 @@
-cmake_minimum_required(VERSION 3.21.4)
+cmake_minimum_required (VERSION 3.13)
 
-project(usb-pd-analyzer)
+project(USBPDAnalyzer)
 
-# The Saleae Analyzer SDK library
-add_library(saleae-analyzer-sdk SHARED IMPORTED)
+add_definitions( -DLOGIC2 )
 
-set_target_properties(
-  saleae-analyzer-sdk
-  PROPERTIES
-  IMPORTED_IMPLIB ${CMAKE_CURRENT_LIST_DIR}/SaleaeAnalyzerSdk-1.1.14/lib/Analyzer.lib
-  IMPORTED_LOCATION ${CMAKE_CURRENT_LIST_DIR}/SaleaeAnalyzerSdk-1.1.14/lib/Analyzer.dll
+# enable generation of compile_commands.json, helpful for IDEs to locate include files.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# custom CMake Modules are located in the cmake directory.
+set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+
+include(ExternalAnalyzerSDK)
+
+set(SOURCES 
+src/USBPDAnalyzer.cpp
+src/USBPDAnalyzer.h
+src/USBPDAnalyzerResults.cpp
+src/USBPDAnalyzerResults.h
+src/USBPDAnalyzerSettings.cpp
+src/USBPDAnalyzerSettings.h
+src/USBPDSimulationDataGenerator.cpp
+src/USBPDSimulationDataGenerator.h
 )
 
-add_library(USBPDAnalyzer SHARED)
-
-target_sources(
-    USBPDAnalyzer
-    PUBLIC
-      source/USBPDAnalyzer.cpp
-      source/USBPDAnalyzerResults.cpp
-      source/USBPDAnalyzerSettings.cpp
-      source/USBPDSimulationDataGenerator.cpp
-)
-
-target_include_directories(
-    USBPDAnalyzer
-    PUBLIC
-      source
-      SaleaeAnalyzerSdk-1.1.14/include
-)
-
-target_link_libraries(
-  USBPDAnalyzer
-  PUBLIC
-  saleae-analyzer-sdk
-)
+add_analyzer_plugin(${PROJECT_NAME} SOURCES ${SOURCES})
