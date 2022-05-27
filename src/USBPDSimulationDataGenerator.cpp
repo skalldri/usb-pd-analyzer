@@ -31,7 +31,9 @@ U32 USBPDSimulationDataGenerator::GenerateSimulationData(
                                                     mSimulationSampleRateHz);
 
   while (mSerialSimulationData.GetCurrentSampleNumber() < (adjusted_largest_sample_requested + 3)) {
-    CreateUSBPDTransaction();
+    for (int i = 0; i < NUM_SOP_TYPE; i++) {
+      CreateUSBPDTransaction((SOPTypes)i);
+    }
   }
 
   *simulation_channel = &mSerialSimulationData;
@@ -104,11 +106,17 @@ void USBPDSimulationDataGenerator::CreatePreamble() {
   }
 }
 
-void USBPDSimulationDataGenerator::CreateSOP() {
-  CreateKCode(SYNC_1);
-  CreateKCode(SYNC_1);
-  CreateKCode(SYNC_1);
-  CreateKCode(SYNC_2);
+void USBPDSimulationDataGenerator::CreateSOP(SOPTypes sop) {
+  if (sop >= NUM_SOP_TYPE) {
+    return;
+  }
+
+  const KCODE* kcodesInSop = sop_map[sop];
+
+  for (int i = 0; i < numKcodeInSOP; i++) {
+    KCODE currentKcode = kcodesInSop[i];
+    CreateKCode(currentKcode);
+  }
 }
 
 void USBPDSimulationDataGenerator::CreateKCode(KCODE code) {
@@ -124,22 +132,24 @@ void USBPDSimulationDataGenerator::CreateKCode(KCODE code) {
   }
 }
 
-/*
-void USBPDSimulationDataGenerator::CreatePreamble() {
-  U32 samples_per_bit = mSimulationSampleRateHz / mSettings->mBitRate;
-
-  // we're currenty high
-  // let's move forward a little
-  mSerialSimulationData.Advance(samples_per_bit);
-
-  // Ensure we start in the high state
-  // TODO: simulator settings that allow us to start in either the high or low state: either
-  // state is technically valid for Biphase Mark Coding
-  mSerialSimulationData.Transition();
+// Take a 4-bit number as input and produce a 5-bit number as output
+// Used for message encoding on-the-wire
+uint8_t USBPDSimulationDataGenerator::FourBitToFiveBitEncoder(uint8_t val) {
+  return fourBitToFiveBitLUT[(val & 0x0F)];
 }
-*/
 
-void USBPDSimulationDataGenerator::CreateUSBPDTransaction() {
+void CreateControlMessageHeader(ControlMessageTypes type, ) {
+  uint8_t nibble0; // [3..0: Message Type]
+  uint8_t nibble1; // [7..6: Specification Revision] [5: Port Data Role if SOP / Reserved, 0 if SOP' or SOP"] [4: Reserved, 0] 
+  uint8_t nibble2; // [11..9: Message ID] [8: Port Power Role if SOP / Cable Plug if SOP' or SOP"]
+  uint8_t nibble3; // [15: Reserved, 0] [14..12: Number of Data Objects]
+}
+
+void CreateDataMessageHeader() {
+
+}
+
+void USBPDSimulationDataGenerator::CreateUSBPDTransaction(SOPTypes sop) {
   U32 samples_per_bit = mSimulationSampleRateHz / mSettings->mBitRate;
 
   // Ensure we start in the high state
@@ -153,7 +163,7 @@ void USBPDSimulationDataGenerator::CreateUSBPDTransaction() {
 
   CreatePreamble();
 
-  CreateSOP();
+  CreateSOP(sop);
 
   // All Frames end with a final edge transition
   mSerialSimulationData.Transition();

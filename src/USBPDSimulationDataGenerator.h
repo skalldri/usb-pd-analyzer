@@ -33,8 +33,9 @@ class USBPDSimulationDataGenerator {
   void CreatePreamble();
   void CreateBiphaseMarkCodingByte(uint8_t byte);
   void CreateBiphaseMarkCodingBit(bool bit);
-  void CreateUSBPDTransaction();
-  void CreateSOP();
+  void CreateUSBPDTransaction(SOPTypes sop);
+  void CreateSOP(SOPTypes sop);
   void CreateKCode(KCODE code);
+  uint8_t FourBitToFiveBitEncoder(uint8_t val);
 };
 #endif  // USBPD_SIMULATION_DATA_GENERATOR

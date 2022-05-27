@@ -211,9 +211,8 @@ bool USBPDAnalyzer::DetectSOP() {
     // Gottem
     if (kcodesFound >= 3) {
       detectedSop = (SOPTypes)i;
+      break;
     }
-
-    break;
   }
 
   // we have a byte to save.

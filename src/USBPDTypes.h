@@ -54,4 +54,99 @@ static const KCODE sop_map[NUM_SOP_TYPE][numKcodeInSOP] = {
     {SYNC_1, RST_2,  SYNC_3, SYNC_2}, // SOP" Debug
 };
 
+static const uint8_t fourBitToFiveBitLUT[16] = {
+    // case 0x0:
+    0x1E, // 11110
+
+    // case 0x1:
+    0x09, // 01001
+
+    // case 0x2:
+    0x14, // 10100
+
+    // case 0x3:
+    0x15, // 10101
+
+    // case 0x4:
+    0x0A, // 01010
+
+    // case 0x5:
+    0x0B, // 01011
+
+    // case 0x6:
+    0x0E, // 01110
+
+    // case 0x7:
+    0x0F, // 01111
+
+    // case 0x8:
+    0x12, // 10010
+
+    // case 0x9:
+    0x13, // 10011
+
+    // case 0xA:
+    0x16, // 10110
+
+    // case 0xB:
+    0x17, // 10111
+
+    // case 0xC:
+    0x1A, // 11010
+
+    // case 0xD:
+    0x1B, // 11011
+
+    // case 0xE:
+    0x1C, // 11100
+
+    // case 0xF:
+    0x1D, // 11101
+};
+
+enum ControlMessageTypes {
+    ControlMessage_Reserved,
+    ControlMessage_GoodCRC,
+    ControlMessage_GotoMin,
+    ControlMessage_Accept,
+    ControlMessage_Reject,
+    ControlMessage_Ping,
+    ControlMessage_PS_RDY,
+    ControlMessage_Get_Source_Cap,
+    ControlMessage_Get_Sink_Cap,
+    ControlMessage_DR_Swap,
+    ControlMessage_PR_Swap,
+    ControlMessage_VCONN_Swap,
+    ControlMessage_Wait,
+    ControlMessage_Soft_Reset,
+
+    ControlMessage_Reserved14,
+    ControlMessage_Reserved15,
+
+    NUM_CONTROL_MESSAGE
+};
+
+enum DataMessageTypes {
+    DataMessage_Reserved,
+    DataMessage_Source_Capabilities,
+    DataMessage_Request,
+    DataMessage_BIST,
+    DataMessage_Sink_Capabilities,
+
+    DataMessage_Reserved5,
+    DataMessage_Reserved6,
+    DataMessage_Reserved7,
+    DataMessage_Reserved8,
+    DataMessage_Reserved9,
+    DataMessage_Reserved10,
+    DataMessage_Reserved11,
+    DataMessage_Reserved12,
+    DataMessage_Reserved13,
+    DataMessage_Reserved14,
+
+    DataMessage_Vendor_Defined,
+
+    NUM_DATA_MESSAGE
+};
+
 #endif // USBPD_TYPES_H
