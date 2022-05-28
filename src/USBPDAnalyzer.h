@@ -3,6 +3,8 @@
 
 #include <Analyzer.h>
 
+#include <map>
+
 #include "USBPDAnalyzerResults.h"
 #include "USBPDSimulationDataGenerator.h"
 #include "USBPDTypes.h"
@@ -37,14 +39,23 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
   U32 mStartOfStopBitOffset;
   U32 mEndOfStopBitOffset;
 
+  std::map<uint8_t, uint8_t> fiveToFourBitLUT;
+
  protected:
   void DetectPreamble();
   bool DetectSOP();
-  uint8_t Read5Bit();
+  bool DetectHeader(uint32_t* currentCrc);
+
+  bool DetectEOP();
+  bool DetectCRC32(uint32_t* currentCrc);
+
+  uint8_t ReadFiveBit();
+  uint8_t ConvertFiveBitToFourBit(uint8_t fiveBit);
+
+  uint8_t ReadDecodedByte(bool addFrame = false);
 
   bool ReadBiphaseMarkCodeBit();
   void DetectUSBPDTransaction();
-
 };
 
 extern "C" ANALYZER_EXPORT const char* __cdecl GetAnalyzerName();

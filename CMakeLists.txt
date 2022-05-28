@@ -13,6 +13,7 @@ set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 include(ExternalAnalyzerSDK)
 
 set(SOURCES 
+src/crc32.cpp
 src/USBPDAnalyzer.cpp
 src/USBPDAnalyzer.h
 src/USBPDAnalyzerResults.cpp

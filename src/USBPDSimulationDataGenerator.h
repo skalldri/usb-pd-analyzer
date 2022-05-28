@@ -3,9 +3,9 @@
 
 #include <SimulationChannelDescriptor.h>
 
-#include "USBPDTypes.h"
-
 #include <string>
+
+#include "USBPDTypes.h"
 class USBPDAnalyzerSettings;
 
 class USBPDSimulationDataGenerator {
@@ -31,9 +31,32 @@ class USBPDSimulationDataGenerator {
  protected:
   void CreateSerialByte();
   void CreatePreamble();
-  void CreateBiphaseMarkCodingByte(uint8_t byte);
+
+  void CreateByte(uint8_t byte);
+
+  void CreateFiveBitFromFourBit(uint8_t fourBit);
+
   void CreateBiphaseMarkCodingBit(bool bit);
-  void CreateUSBPDTransaction(SOPTypes sop);
+
+  void CreateUSBPDControlMessageTransaction(SOPTypes sop,
+                                            ControlMessageTypes messageType,
+                                            PortDataRole dataRole,
+                                            PDSpecRevision specRev,
+                                            uint8_t portPowerRoleOrCablePlug);
+
+  uint16_t CreateMessageHeader(uint8_t messageType,
+                               uint8_t portDataRole,
+                               uint8_t specificationRevision,
+                               uint8_t portPowerRoleOrCablePlug,
+                               uint8_t messageId,
+                               uint8_t numOfDataObjects);
+
+  uint16_t CreateControlMessageHeader(ControlMessageTypes type,
+                                      PortDataRole role,
+                                      PDSpecRevision rev,
+                                      uint8_t portPowerRoleOrCablePlug,
+                                      uint8_t messageId);
+
   void CreateSOP(SOPTypes sop);
   void CreateKCode(KCODE code);
   uint8_t FourBitToFiveBitEncoder(uint8_t val);

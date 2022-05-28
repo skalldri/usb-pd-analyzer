@@ -3,13 +3,21 @@
 
 enum FrameType {
   FRAME_TYPE_PREAMBLE,
+
   FRAME_TYPE_SOP,
   FRAME_TYPE_SOP_PRIME,
   FRAME_TYPE_SOP_DOUBLE_PRIME,
   FRAME_TYPE_SOP_PRIME_DEBUG,
   FRAME_TYPE_SOP_DOUBLE_PRIME_DEBUG,
   FRAME_TYPE_SOP_ERROR,
+
   FRAME_TYPE_HEADER,
+
+  FRAME_TYPE_CRC32,
+
+  FRAME_TYPE_EOP,
+
+  FRAME_TYPE_BYTE,
 
   NUM_FRAME_TYPE
 };
@@ -126,6 +134,25 @@ enum ControlMessageTypes {
     NUM_CONTROL_MESSAGE
 };
 
+static const char* ControlMessageNames[NUM_CONTROL_MESSAGE] = {
+    "ControlMessage_Reserved",
+    "ControlMessage_GoodCRC",
+    "ControlMessage_GotoMin",
+    "ControlMessage_Accept",
+    "ControlMessage_Reject",
+    "ControlMessage_Ping",
+    "ControlMessage_PS_RDY",
+    "ControlMessage_Get_Source_Cap",
+    "ControlMessage_Get_Sink_Cap",
+    "ControlMessage_DR_Swap",
+    "ControlMessage_PR_Swap",
+    "ControlMessage_VCONN_Swap",
+    "ControlMessage_Wait",
+    "ControlMessage_Soft_Reset",
+    "ControlMessage_Reserved14",
+    "ControlMessage_Reserved15",
+};
+
 enum DataMessageTypes {
     DataMessage_Reserved,
     DataMessage_Source_Capabilities,
@@ -148,5 +175,54 @@ enum DataMessageTypes {
 
     NUM_DATA_MESSAGE
 };
+
+static const char* DataMessageNames[NUM_DATA_MESSAGE] = {
+    "DataMessage_Reserved",
+    "DataMessage_Source_Capabilities",
+    "DataMessage_Request",
+    "DataMessage_BIST",
+    "DataMessage_Sink_Capabilities",
+    "DataMessage_Reserved5",
+    "DataMessage_Reserved6",
+    "DataMessage_Reserved7",
+    "DataMessage_Reserved8",
+    "DataMessage_Reserved9",
+    "DataMessage_Reserved10",
+    "DataMessage_Reserved11",
+    "DataMessage_Reserved12",
+    "DataMessage_Reserved13",
+    "DataMessage_Reserved14",
+    "DataMessage_Vendor_Defined",
+};
+
+enum PDSpecRevision {
+    REVISION_1P0,
+    REVISION_2P0,
+
+    NUM_PD_SPEC_REVISION
+};
+
+enum PortDataRole {
+    UFP, // Upstream-facing Port, the USB Device
+    DFP, // Downstream-facing Port, the USB Host
+
+    NUM_PORT_DATA_ROLE
+};
+
+enum PortPowerRole {
+    Sink, // Device will draw power
+    Source, // Device will provide power
+
+    NUM_PORT_POWER_ROLE
+};
+
+enum CablePlug {
+    MsgSrcPort, // Message came from the UFP or DFP port
+    MsgSrcPlug, // Message came from one of the plugs
+
+    NUM_CABLE_PLUG
+};
+
+static const uint32_t usbCrcPolynomial = 0x04C11DB7;
 
 #endif // USBPD_TYPES_H

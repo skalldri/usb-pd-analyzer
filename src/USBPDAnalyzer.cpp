@@ -2,9 +2,11 @@
 
 #include <AnalyzerChannelData.h>
 
+#include <iostream>
+
 #include "USBPDAnalyzerSettings.h"
 
-#include <iostream>
+#include "crc32.h"
 
 using namespace std;
 
@@ -12,6 +14,11 @@ USBPDAnalyzer::USBPDAnalyzer()
     : Analyzer2(),
       mSettings(new USBPDAnalyzerSettings()),
       mSimulationInitilized(false) {
+  // Generate the LUT for converting 5 bit code into 4 bit code
+  for (int i = 0; i < 16; i++) {
+    fiveToFourBitLUT.insert(std::make_pair(fourBitToFiveBitLUT[i], i));
+  }
+
   SetAnalyzerSettings(mSettings.get());
 }
 
@@ -75,7 +82,8 @@ void USBPDAnalyzer::WorkerThread() {
 // Needs to start on an edge!
 bool USBPDAnalyzer::ReadBiphaseMarkCodeBit() {
   U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
-  U32 samples_per_transition = mSampleRateHz / (mSettings->mBitRate * 2); // Two transitions per bit
+  U32 samples_per_transition =
+      mSampleRateHz / (mSettings->mBitRate * 2);  // Two transitions per bit
 
   U8 data = 0;
 
@@ -91,31 +99,32 @@ bool USBPDAnalyzer::ReadBiphaseMarkCodeBit() {
 
   // If this edge is within range to be the central edge in a 1...
   // TODO: make tollerance a setting
-  if ((edgeDelta >= (samples_per_transition * 0.75)) && 
+  if ((edgeDelta >= (samples_per_transition * 0.75)) &&
       (edgeDelta <= (samples_per_transition * 1.25))) {
-      data = 1;
+    data = 1;
 
-      // Need to advance to next edge to get to the end of the digit
-      mSerial->AdvanceToNextEdge();
-      secondEdgeSampleNumber = mSerial->GetSampleNumber();
+    // Need to advance to next edge to get to the end of the digit
+    mSerial->AdvanceToNextEdge();
+    secondEdgeSampleNumber = mSerial->GetSampleNumber();
   }
 
   U64 midpoint = ((secondEdgeSampleNumber - firstEdgeSampleNumber) / 2) + firstEdgeSampleNumber;
-  mResults->AddMarker(midpoint, data ? AnalyzerResults::MarkerType::One : AnalyzerResults::MarkerType::Zero, mSettings->mInputChannel);
+  mResults->AddMarker(midpoint,
+                      data ? AnalyzerResults::MarkerType::One : AnalyzerResults::MarkerType::Zero,
+                      mSettings->mInputChannel);
 
   return data;
 }
 
 void USBPDAnalyzer::DetectPreamble() {
-  // USB-PD specification says that we need to be tollerant to losing the first edge of the preamble.
-  // Since the first bit of the preamble is always 0, if we lost that edge, then
-  // the next edge we see would be the starting edge for the 1
-  // Therefore, we could see two possible bitstreams:
-  // 0101010101... repeated for a total of 64 bits
-  // 10101010... repreated for a total of 63 bits
-  // Since the second is just a subset of the first, we will just look for the second pattern to find the preamble
+  // USB-PD specification says that we need to be tollerant to losing the first edge of the
+  // preamble. Since the first bit of the preamble is always 0, if we lost that edge, then the next
+  // edge we see would be the starting edge for the 1 Therefore, we could see two possible
+  // bitstreams: 0101010101... repeated for a total of 64 bits 10101010... repreated for a total of
+  // 63 bits Since the second is just a subset of the first, we will just look for the second
+  // pattern to find the preamble
 
-  bool expected = true; // Always looking to start the preamble on a '1' bit
+  bool expected = true;  // Always looking to start the preamble on a '1' bit
   const int expectedPreambleBits = 63;
   int preambleBits = 0;
 
@@ -126,9 +135,10 @@ void USBPDAnalyzer::DetectPreamble() {
 
     // Reset state if we didn't get the expected bit transition
     if (bit != expected) {
-      expected = true; // Always looking to start the preamble on a '1' bit
-      preambleBits = 0; // reset number of bits found
-      startOfPreamble = mSerial->GetSampleNumber(); // Reset where we think the preamble could start
+      expected = true;   // Always looking to start the preamble on a '1' bit
+      preambleBits = 0;  // reset number of bits found
+      startOfPreamble =
+          mSerial->GetSampleNumber();  // Reset where we think the preamble could start
     } else {
       preambleBits++;
       expected = !expected;
@@ -148,23 +158,73 @@ void USBPDAnalyzer::DetectPreamble() {
   mResults->AddFrame(frame);
 }
 
-uint8_t USBPDAnalyzer::Read5Bit() {
+uint8_t USBPDAnalyzer::ReadFiveBit() {
   uint8_t result = 0;
 
-  cout << "Reading 5 bits: ";
+  //cout << "Reading 5 bits: ";
 
   for (int i = 0; i < 5; i++) {
     bool bit = ReadBiphaseMarkCodeBit();
 
-    cout << (bit ? 1 : 0) << ", ";
+    //cout << (bit ? 1 : 0) << ", ";
 
     // Bits are read LSB -> MSB off the wire
     result |= ((bit ? 0x1 : 0x0) << i);
   }
 
-  cout << endl;
+  //cout << endl;
 
   return result;
+}
+
+/**
+ * @brief Use the fiveToFourBitLUT to convert a five-bit input number into a 4-bit output number
+ * 
+ * @param fiveBit 
+ * @return uint8_t 
+ */
+uint8_t USBPDAnalyzer::ConvertFiveBitToFourBit(uint8_t fiveBit) {
+  if (fiveToFourBitLUT.count(fiveBit & 0x1F) == 0) {
+    cout << "Unexpceted 5-bit pattern: 0x" << std::hex << fiveBit << endl;
+    return 0xFF;
+  }
+
+  return fiveToFourBitLUT[fiveBit & 0x1F];
+}
+
+/**
+ * @brief Read 10 Biphase Mark Coded bits from the stream, decode the 4-to-5-bit encoding, and
+ * return the decoded byte.
+ *
+ * @return uint8_t
+ */
+uint8_t USBPDAnalyzer::ReadDecodedByte(bool addFrame) {
+  U64 startOfByte = mSerial->GetSampleNumber();
+
+  uint8_t fiveBit = ReadFiveBit();
+  uint8_t lsbNibble = ConvertFiveBitToFourBit(fiveBit);
+
+  fiveBit = ReadFiveBit();
+  uint8_t msbNibble = ConvertFiveBitToFourBit(fiveBit);
+
+  uint8_t data = (((msbNibble << 4) & 0xF0) | (lsbNibble & 0xF));
+
+  U64 endOfByte = mSerial->GetSampleNumber();
+
+  if (addFrame) {
+    // we have a byte to save.
+    // TODO: support detecting errors in the 5-bit pattern (ConvertFiveBitToFourBit() returns 255)
+    // and add a flag so we can put an error in the frame text
+    Frame frame;
+    frame.mData1 = data;
+    frame.mFlags = 0;
+    frame.mType = FRAME_TYPE_BYTE;
+    frame.mStartingSampleInclusive = startOfByte;
+    frame.mEndingSampleInclusive = endOfByte;
+    mResults->AddFrame(frame);
+  }
+
+  return data;
 }
 
 bool USBPDAnalyzer::DetectSOP() {
@@ -172,13 +232,12 @@ bool USBPDAnalyzer::DetectSOP() {
 
   U64 startOfSop = mSerial->GetSampleNumber();
 
-
-  cout << "Reading bitstream: ";
-  for(int i = 0; i < numKcodeInSOP; i++) {
-    kcode[i] = Read5Bit();
-    cout << (int) kcode[i] << ", ";
+  //cout << "Reading bitstream: ";
+  for (int i = 0; i < numKcodeInSOP; i++) {
+    kcode[i] = ReadFiveBit();
+    //cout << (int)kcode[i] << ", ";
   }
-  cout << endl;
+  //cout << endl;
 
   U64 endOfSop = mSerial->GetSampleNumber();
 
@@ -188,11 +247,11 @@ bool USBPDAnalyzer::DetectSOP() {
     // Which KCode should we detect for this SOP type?
     const KCODE* kcodesForSop = sop_map[i];
 
-    cout << "Looking for KCODE sequence: ";
-    for (int k = 0; k < numKcodeInSOP; k++) {
-        cout << kcodesForSop[k] << ", ";
-    }
-    cout << endl;
+    //cout << "Looking for KCODE sequence: ";
+    //for (int k = 0; k < numKcodeInSOP; k++) {
+    //  cout << kcodesForSop[k] << ", ";
+    //}
+    //cout << endl;
 
     // How many KCodes matched? If we find 3, we can proceed
     int kcodesFound = 0;
@@ -220,7 +279,7 @@ bool USBPDAnalyzer::DetectSOP() {
   frame.mData1 = 1;
   frame.mFlags = 0;
 
-  switch(detectedSop){
+  switch (detectedSop) {
     case SOP:
       frame.mType = FRAME_TYPE_SOP;
       break;
@@ -240,18 +299,85 @@ bool USBPDAnalyzer::DetectSOP() {
     case SOP_DOUBLE_PRIME_DEBUG:
       frame.mType = FRAME_TYPE_SOP_DOUBLE_PRIME_DEBUG;
       break;
-    
-    case NUM_SOP_TYPE:
+
     default:
       frame.mType = FRAME_TYPE_SOP_ERROR;
       break;
   }
-  
+
   frame.mStartingSampleInclusive = startOfSop;
   frame.mEndingSampleInclusive = endOfSop;
   mResults->AddFrame(frame);
 
   return (detectedSop != NUM_SOP_TYPE);
+}
+
+bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc) {
+  U64 startOfHeader = mSerial->GetSampleNumber();
+
+  uint8_t lsb = ReadDecodedByte();
+  uint8_t msb = ReadDecodedByte();
+
+  U64 endOfHeader = mSerial->GetSampleNumber();
+
+  uint16_t header = (msb << 8) | (lsb);
+
+  Frame frame;
+  frame.mData1 = header;
+  frame.mFlags = 0;
+  frame.mType = FRAME_TYPE_HEADER;
+  frame.mStartingSampleInclusive = startOfHeader;
+  frame.mEndingSampleInclusive = endOfHeader;
+  mResults->AddFrame(frame);
+
+  uint32_t remainder = crc32(*currentCrc, (const uint8_t*)&header, sizeof(uint16_t), usbCrcPolynomial);
+
+  *currentCrc = remainder;
+
+  return true;
+}
+
+bool USBPDAnalyzer::DetectCRC32(uint32_t* currentCrc) {
+  U64 startOfCrc = mSerial->GetSampleNumber();
+
+  uint32_t byte0 = ReadDecodedByte();
+  uint32_t byte1 = ReadDecodedByte();
+  uint32_t byte2 = ReadDecodedByte();
+  uint32_t byte3 = ReadDecodedByte();
+
+  U64 endOfCrc = mSerial->GetSampleNumber();
+
+  uint32_t crcVal = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | (byte0);
+
+  Frame frame;
+  frame.mData1 = crcVal;
+  frame.mData2 = *currentCrc;
+  frame.mFlags = 0;
+  frame.mType = FRAME_TYPE_CRC32;
+  frame.mStartingSampleInclusive = startOfCrc;
+  frame.mEndingSampleInclusive = endOfCrc;
+  mResults->AddFrame(frame);
+
+  return true;
+}
+
+bool USBPDAnalyzer::DetectEOP() {
+  U64 startOfEop = mSerial->GetSampleNumber();
+
+  uint8_t kcode = ReadFiveBit();
+
+  U64 endOfEop = mSerial->GetSampleNumber();
+
+  Frame frame;
+  frame.mData1 = (kcode == EOP);
+  frame.mData2 = 0;
+  frame.mFlags = 0;
+  frame.mType = FRAME_TYPE_EOP;
+  frame.mStartingSampleInclusive = startOfEop;
+  frame.mEndingSampleInclusive = endOfEop;
+  mResults->AddFrame(frame);
+
+  return true;
 }
 
 void USBPDAnalyzer::DetectUSBPDTransaction() {
@@ -260,6 +386,18 @@ void USBPDAnalyzer::DetectUSBPDTransaction() {
     DetectPreamble();
 
     if (!DetectSOP()) {
+      // Failed to detect a SOP after the preamble. Return to searching for a preamble
+      continue;
+    }
+
+    uint32_t crc32 = 0x00000000;
+
+    if (!DetectHeader(&crc32)) {
+      // Failed to detect a SOP after the preamble. Return to searching for a preamble
+      continue;
+    }
+
+    if (!DetectCRC32(&crc32)) {
       // Failed to detect a SOP after the preamble. Return to searching for a preamble
       continue;
     }
@@ -283,13 +421,13 @@ void USBPDAnalyzer::WorkerThread() {
   mSerial->AdvanceToNextEdge();
 
   U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
-  U32 samples_per_transition = mSampleRateHz / (mSettings->mBitRate * 2); // Two transitions per bit
+  U32 samples_per_transition =
+      mSampleRateHz / (mSettings->mBitRate * 2);  // Two transitions per bit
 
   U32 samples_to_first_center_of_first_data_bit =
       U32(1.5 * double(mSampleRateHz) / double(mSettings->mBitRate));
 
   for (;;) {
-
     DetectUSBPDTransaction();
 
     /*
@@ -308,7 +446,7 @@ void USBPDAnalyzer::WorkerThread() {
 
     // If this edge is within range to be the central edge in a 1...
     // TODO: make tollerance a setting
-    if ((edgeDelta >= (samples_per_transition * 0.75)) && 
+    if ((edgeDelta >= (samples_per_transition * 0.75)) &&
         (edgeDelta <= (samples_per_transition * 1.25))) {
         data = 1;
 
@@ -326,7 +464,8 @@ void USBPDAnalyzer::WorkerThread() {
     mResults->AddFrame(frame);
 
     U64 midpoint = ((secondEdgeSampleNumber - firstEdgeSampleNumber) / 2) + firstEdgeSampleNumber;
-    mResults->AddMarker(midpoint, data ? AnalyzerResults::MarkerType::One : AnalyzerResults::MarkerType::Zero, mSettings->mInputChannel);
+    mResults->AddMarker(midpoint, data ? AnalyzerResults::MarkerType::One :
+    AnalyzerResults::MarkerType::Zero, mSettings->mInputChannel);
     */
 
     mResults->CommitResults();
