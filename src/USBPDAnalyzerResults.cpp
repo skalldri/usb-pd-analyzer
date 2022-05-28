@@ -64,7 +64,7 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
       uint8_t portDataRole = ((frame.mData1 & 0x20) >> 5); // Bit 5 == Port Data Role (SOP only)
       uint8_t messageType = ((frame.mData1 & 0xF)); // Bits 3..0 == Message Type
 
-      AddResultString("Header, Message Type=", ControlMessageNames[messageType]);
+      AddResultString("Header, Message Type=", numberOfDataObjects == 0 ? ControlMessageNames[messageType] : DataMessageNames[messageType]);
 
     } break;
 

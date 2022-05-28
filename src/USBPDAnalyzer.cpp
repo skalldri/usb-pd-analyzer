@@ -227,6 +227,43 @@ uint8_t USBPDAnalyzer::ReadDecodedByte(bool addFrame) {
   return data;
 }
 
+/**
+ * @brief Read 40 Biphase Mark Coded bits from the stream, decode the 4-to-5-bit encoding, and
+ * return the decoded word.
+ *
+ * @return uint8_t
+ */
+uint32_t USBPDAnalyzer::ReadDataObject(uint32_t* currentCrc, bool addFrame) {
+  U64 startOfDataObject = mSerial->GetSampleNumber();
+
+  uint8_t byte0 = ReadDecodedByte(false);
+  uint8_t byte1 = ReadDecodedByte(false);
+  uint8_t byte2 = ReadDecodedByte(false);
+  uint8_t byte3 = ReadDecodedByte(false);
+
+  U64 endOfDataObject = mSerial->GetSampleNumber();
+
+  uint32_t dataObject = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0;
+
+  uint32_t remainder = crc32(*currentCrc, (const uint8_t*)&dataObject, sizeof(uint32_t), usbCrcPolynomial);
+  *currentCrc = remainder;
+
+  if (addFrame) {
+    // we have a byte to save.
+    // TODO: support detecting errors in the 5-bit pattern (ConvertFiveBitToFourBit() returns 255)
+    // and add a flag so we can put an error in the frame text
+    Frame frame;
+    frame.mData1 = dataObject;
+    frame.mFlags = 0;
+    frame.mType = FRAME_TYPE_DATA_OBJECT;
+    frame.mStartingSampleInclusive = startOfDataObject;
+    frame.mEndingSampleInclusive = endOfDataObject;
+    mResults->AddFrame(frame);
+  }
+
+  return dataObject;
+}
+
 bool USBPDAnalyzer::DetectSOP() {
   uint8_t kcode[numKcodeInSOP] = {0};
 
@@ -312,7 +349,7 @@ bool USBPDAnalyzer::DetectSOP() {
   return (detectedSop != NUM_SOP_TYPE);
 }
 
-bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc) {
+bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc, uint8_t* dataObjects) {
   U64 startOfHeader = mSerial->GetSampleNumber();
 
   uint8_t lsb = ReadDecodedByte();
@@ -321,6 +358,8 @@ bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc) {
   U64 endOfHeader = mSerial->GetSampleNumber();
 
   uint16_t header = (msb << 8) | (lsb);
+
+  *dataObjects = ((header & 0x7000) >> 12); // Bits 14..12 == Number of Data Objects
 
   Frame frame;
   frame.mData1 = header;
@@ -369,7 +408,7 @@ bool USBPDAnalyzer::DetectEOP() {
   U64 endOfEop = mSerial->GetSampleNumber();
 
   Frame frame;
-  frame.mData1 = (kcode == EOP);
+  frame.mData1 = (kcode == kcode_map[EOP]);
   frame.mData2 = 0;
   frame.mFlags = 0;
   frame.mType = FRAME_TYPE_EOP;
@@ -391,13 +430,23 @@ void USBPDAnalyzer::DetectUSBPDTransaction() {
     }
 
     uint32_t crc32 = 0x00000000;
+    uint8_t dataObjects = 0;
 
-    if (!DetectHeader(&crc32)) {
-      // Failed to detect a SOP after the preamble. Return to searching for a preamble
+    if (!DetectHeader(&crc32, &dataObjects)) {
+      // Failed to detect a header after the SOP. Return to searching for a preamble
       continue;
     }
 
+    for (int i = 0; i < dataObjects; i++) {
+      ReadDataObject(&crc32);
+    }
+
     if (!DetectCRC32(&crc32)) {
+      // Failed to detect a CRC32 after the header / payload. Return to searching for a preamble
+      continue;
+    }
+
+    if (!DetectEOP()) {
       // Failed to detect a SOP after the preamble. Return to searching for a preamble
       continue;
     }

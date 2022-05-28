@@ -19,6 +19,8 @@ enum FrameType {
 
   FRAME_TYPE_BYTE,
 
+  FRAME_TYPE_DATA_OBJECT,
+
   NUM_FRAME_TYPE
 };
 

@@ -44,7 +44,7 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
  protected:
   void DetectPreamble();
   bool DetectSOP();
-  bool DetectHeader(uint32_t* currentCrc);
+  bool DetectHeader(uint32_t* currentCrc, uint8_t* dataObjects);
 
   bool DetectEOP();
   bool DetectCRC32(uint32_t* currentCrc);
@@ -53,6 +53,8 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
   uint8_t ConvertFiveBitToFourBit(uint8_t fiveBit);
 
   uint8_t ReadDecodedByte(bool addFrame = false);
+
+  uint32_t ReadDataObject(uint32_t* currentCrc, bool addFrame = true);
 
   bool ReadBiphaseMarkCodeBit();
   void DetectUSBPDTransaction();
