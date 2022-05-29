@@ -202,6 +202,7 @@ static const char* DataMessageNames[NUM_DATA_MESSAGE] = {
 enum PDSpecRevision {
     REVISION_1P0,
     REVISION_2P0,
+    REVISION_3P0,
 
     NUM_PD_SPEC_REVISION
 };
@@ -233,13 +234,26 @@ enum PDOType {
     FixedSupply,
     Battery,
     VariableSupply,
-    PDOType_Reserved,
+    AugmentedPDO,
 
     NUM_PDO_TYPE
 };
 
+enum APDOType {
+    SPRProgrammablePowerSupply,
+    EPRAdjustableVoltageSupply,
+
+    NUM_APDO_TYPE
+};
+
+// Constants for PDOs
 static const int usbPdoMilivoltPerStep = 50;
 static const int usbPdoMiliampPerStep = 10;
 static const int usbPdoMiliwattPerStep = 250;
+
+// Constants for APDOs
+static const int usbApdoMilivoltPerStep = 100;
+static const int usbApdoMiliampPerStep = 50;
+static const int usbApdoMiliwattPerStep = 1000;
 
 #endif // USBPD_TYPES_H

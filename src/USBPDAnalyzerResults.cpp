@@ -17,7 +17,7 @@ USBPDAnalyzerResults::~USBPDAnalyzerResults() {}
 
 #define CHECK_BIT(val, bit) ((val) & (1 << (bit)) != 0)
 #define EXTRACT_BIT_RANGE(val, msb, lsb) \
-  ((((val) & ((0xFFFFFFFF >> (32 - (msb))) & (0xFFFFFFFF << (lsb))))) >> (lsb))
+  ((((val) & ((0xFFFFFFFF >> (32 - (msb + 1))) & (0xFFFFFFFF << (lsb))))) >> (lsb))
 
 void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                                               Channel& channel,
@@ -87,7 +87,11 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                 (portDataRole == UFP) ? "UFP Port" : "DFP Port",
                 (portPowerRoleOrCablePlug == Source) ? "Source" : "Sink",
                 msgIdString,
-                specRev == REVISION_1P0 ? "PD 1.0" : "PD 2.0");
+                specRev == REVISION_1P0
+                    ? "PD 1.0"
+                    : (specRev == REVISION_2P0
+                           ? "PD 2.0"
+                           : (specRev == REVISION_3P0 ? "PD 3.0" : "Unknown PD Spec")));
 
       } else {
         sprintf(result_str,
@@ -96,7 +100,11 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                                          : DataMessageNames[messageType],
                 (portPowerRoleOrCablePlug == MsgSrcPort) ? "DFP/UFP Port" : "Cable Plug",
                 msgIdString,
-                specRev == REVISION_1P0 ? "PD 1.0" : "PD 2.0");
+                specRev == REVISION_1P0
+                    ? "PD 1.0"
+                    : (specRev == REVISION_2P0
+                           ? "PD 2.0"
+                           : (specRev == REVISION_3P0 ? "PD 3.0" : "Unknown PD Spec")));
       }
 
       AddResultString(result_str);
@@ -110,14 +118,16 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
 
       switch (pdoType) {
         case FixedSupply: {
-          uint8_t dualRolePower = CHECK_BIT(frame.mData1, 29);
-          uint8_t usbSuspendSupported = CHECK_BIT(frame.mData1, 28);
-          uint8_t unconstrainedPower = CHECK_BIT(frame.mData1, 27);
-          uint8_t usbCommsCapable = CHECK_BIT(frame.mData1, 26);
-          uint8_t dualRoleData = CHECK_BIT(frame.mData1, 25);
-          uint8_t peakCurrent = EXTRACT_BIT_RANGE(frame.mData1, 21, 20);
-          uint8_t voltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint8_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
+          uint32_t dualRolePower = CHECK_BIT(frame.mData1, 29);
+          uint32_t usbSuspendSupported = CHECK_BIT(frame.mData1, 28);
+          uint32_t unconstrainedPower = CHECK_BIT(frame.mData1, 27);
+          uint32_t usbCommsCapable = CHECK_BIT(frame.mData1, 26);
+          uint32_t dualRoleData = CHECK_BIT(frame.mData1, 25);
+          uint32_t unchunkedExtendedMessagesSupported = CHECK_BIT(frame.mData1, 24);
+          uint32_t eprModeCapable = CHECK_BIT(frame.mData1, 23);
+          uint32_t peakCurrent = EXTRACT_BIT_RANGE(frame.mData1, 21, 20);
+          uint32_t voltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
+          uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
 
           sprintf(result_str,
                   "PDO - Fixed Supply, "
@@ -126,23 +136,29 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                   "USB Suspend Supported=%s, "
                   "USB Comms Capable=%s, "
                   "Unconstrained Power=%s, "
+                  "Unchunked Extended Msgs Supported=%s, "
+                  "EPR Mode Capable=%s, "
                   "Peak Current Mode=%d, "
                   "Voltage=%d mV, "
-                  "MaxCurrent=%d mA, ",
+                  "MaxCurrent=%d mA, "
+                  "Debug=%08x",
                   dualRolePower ? "Yes" : "No",
                   dualRoleData ? "Yes" : "No",
                   usbSuspendSupported ? "Yes" : "No",
                   usbCommsCapable ? "Yes" : "No",
                   unconstrainedPower ? "Yes" : "No",
+                  unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                  eprModeCapable ? "Yes" : "No",
                   peakCurrent,
                   voltage * usbPdoMilivoltPerStep,
-                  maxCurrent * usbPdoMiliampPerStep);
+                  maxCurrent * usbPdoMiliampPerStep,
+                  frame.mData1);
         } break;
 
         case Battery: {
-          uint8_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
-          uint8_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint8_t maxPower = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
+          uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
+          uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
+          uint32_t maxPower = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
 
           sprintf(result_str,
                   "PDO - Battery, "
@@ -155,9 +171,9 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
         } break;
 
         case VariableSupply: {
-          uint8_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
-          uint8_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint8_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
+          uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
+          uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
+          uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
 
           sprintf(result_str,
                   "PDO - Variable Supply, "
@@ -167,6 +183,54 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                   maxVoltage * usbPdoMilivoltPerStep,
                   minVoltage * usbPdoMilivoltPerStep,
                   maxCurrent * usbPdoMiliampPerStep);
+        } break;
+
+        case AugmentedPDO: {
+          APDOType apdoType = (APDOType)EXTRACT_BIT_RANGE(frame.mData1, 29, 28);
+
+          switch (apdoType) {
+            case SPRProgrammablePowerSupply: {
+              uint32_t ppsPowerLimited = CHECK_BIT(frame.mData1, 27);
+              uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 24, 17);
+              uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 15, 8);
+              uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 6, 0);
+
+              sprintf(result_str,
+                      "APDO - SPR Programmable Power Supply, "
+                      "PPS Power Limited=%s, "
+                      "MaxVoltage=%d mV, "
+                      "MinVoltage=%d mV, "
+                      "MaxCurrent=%d mA, "
+                      "Debug=%08x",
+                      ppsPowerLimited ? "Yes" : "No",
+                      maxVoltage * usbApdoMilivoltPerStep,
+                      minVoltage * usbApdoMilivoltPerStep,
+                      maxCurrent * usbApdoMiliampPerStep,
+                      frame.mData1);
+            } break;
+
+            case EPRAdjustableVoltageSupply: {
+              uint32_t peakCurrentMode = EXTRACT_BIT_RANGE(frame.mData1, 27, 26);
+              uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 25, 17);
+              uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 15, 8);
+              uint32_t maxPower = EXTRACT_BIT_RANGE(frame.mData1, 7, 0);
+
+              sprintf(result_str,
+                      "APDO - SPR Programmable Power Supply, "
+                      "Peak Current Mode=%d, "
+                      "MaxVoltage=%d mV, "
+                      "MinVoltage=%d mV, "
+                      "MaxPower=%d mW, ",
+                      peakCurrentMode,
+                      maxVoltage * usbApdoMilivoltPerStep,
+                      minVoltage * usbApdoMilivoltPerStep,
+                      maxPower * usbApdoMiliwattPerStep);
+            } break;
+
+            default: {
+              sprintf(result_str, "!!! APDO - Invalid Type %d !!!", apdoType);
+            } break;
+          }
         } break;
 
         default: {
