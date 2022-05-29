@@ -19,7 +19,9 @@ enum FrameType {
 
   FRAME_TYPE_BYTE,
 
-  FRAME_TYPE_DATA_OBJECT,
+  FRAME_TYPE_GENERIC_DATA_OBJECT,
+
+  FRAME_TYPE_POWER_DATA_OBJECT,
 
   NUM_FRAME_TYPE
 };
@@ -226,5 +228,18 @@ enum CablePlug {
 };
 
 static const uint32_t usbCrcPolynomial = 0x04C11DB7;
+
+enum PDOType {
+    FixedSupply,
+    Battery,
+    VariableSupply,
+    PDOType_Reserved,
+
+    NUM_PDO_TYPE
+};
+
+static const int usbPdoMilivoltPerStep = 50;
+static const int usbPdoMiliampPerStep = 10;
+static const int usbPdoMiliwattPerStep = 250;
 
 #endif // USBPD_TYPES_H

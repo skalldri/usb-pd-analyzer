@@ -97,6 +97,11 @@ bool USBPDAnalyzer::ReadBiphaseMarkCodeBit() {
 
   U64 edgeDelta = (secondEdgeSampleNumber - firstEdgeSampleNumber);
 
+  // Detect glitches: if edgeDelta is <10% of samples_per_bit then this is probably a glitch
+  if (edgeDelta <= (samples_per_bit * 0.1)) {
+    cout << "Suspected glitch at sample " << samples_per_bit << endl;
+  }
+
   // If this edge is within range to be the central edge in a 1...
   // TODO: make tollerance a setting
   if ((edgeDelta >= (samples_per_transition * 0.75)) &&
@@ -185,7 +190,7 @@ uint8_t USBPDAnalyzer::ReadFiveBit() {
  */
 uint8_t USBPDAnalyzer::ConvertFiveBitToFourBit(uint8_t fiveBit) {
   if (fiveToFourBitLUT.count(fiveBit & 0x1F) == 0) {
-    cout << "Unexpceted 5-bit pattern: 0x" << std::hex << fiveBit << endl;
+    cout << "Unexpceted 5-bit pattern: 0x" << std::hex << (int)fiveBit << endl;
     return 0xFF;
   }
 
@@ -255,7 +260,7 @@ uint32_t USBPDAnalyzer::ReadDataObject(uint32_t* currentCrc, bool addFrame) {
     Frame frame;
     frame.mData1 = dataObject;
     frame.mFlags = 0;
-    frame.mType = FRAME_TYPE_DATA_OBJECT;
+    frame.mType = FRAME_TYPE_GENERIC_DATA_OBJECT;
     frame.mStartingSampleInclusive = startOfDataObject;
     frame.mEndingSampleInclusive = endOfDataObject;
     mResults->AddFrame(frame);
@@ -264,7 +269,7 @@ uint32_t USBPDAnalyzer::ReadDataObject(uint32_t* currentCrc, bool addFrame) {
   return dataObject;
 }
 
-bool USBPDAnalyzer::DetectSOP() {
+bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
   uint8_t kcode[numKcodeInSOP] = {0};
 
   U64 startOfSop = mSerial->GetSampleNumber();
@@ -342,6 +347,8 @@ bool USBPDAnalyzer::DetectSOP() {
       break;
   }
 
+  *sop = detectedSop;
+
   frame.mStartingSampleInclusive = startOfSop;
   frame.mEndingSampleInclusive = endOfSop;
   mResults->AddFrame(frame);
@@ -349,7 +356,7 @@ bool USBPDAnalyzer::DetectSOP() {
   return (detectedSop != NUM_SOP_TYPE);
 }
 
-bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc, uint8_t* dataObjects) {
+bool USBPDAnalyzer::DetectHeader(SOPTypes sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType) {
   U64 startOfHeader = mSerial->GetSampleNumber();
 
   uint8_t lsb = ReadDecodedByte();
@@ -361,8 +368,15 @@ bool USBPDAnalyzer::DetectHeader(uint32_t* currentCrc, uint8_t* dataObjects) {
 
   *dataObjects = ((header & 0x7000) >> 12); // Bits 14..12 == Number of Data Objects
 
+  if (*dataObjects > 0) {
+    *dataMsgType = (DataMessageTypes)((header & 0xF)); // Bits 3..0 == Message Type
+  } else {
+    *dataMsgType = NUM_DATA_MESSAGE;
+  }
+  
   Frame frame;
   frame.mData1 = header;
+  frame.mData2 = sop;
   frame.mFlags = 0;
   frame.mType = FRAME_TYPE_HEADER;
   frame.mStartingSampleInclusive = startOfHeader;
@@ -419,26 +433,54 @@ bool USBPDAnalyzer::DetectEOP() {
   return true;
 }
 
+void USBPDAnalyzer::ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numDataObjects) {
+  for (int i = 0; i < numDataObjects; i++) {
+    U64 startOfSourceCapability = mSerial->GetSampleNumber();
+    uint32_t pdo = ReadDataObject(currentCrc, false /* don't add a frame */);
+    U64 endOfSourceCapability = mSerial->GetSampleNumber();
+
+    Frame frame;
+    frame.mData1 = pdo;
+    frame.mData2 = 0;
+    frame.mFlags = 0;
+    frame.mType = FRAME_TYPE_POWER_DATA_OBJECT;
+    frame.mStartingSampleInclusive = startOfSourceCapability;
+    frame.mEndingSampleInclusive = endOfSourceCapability;
+    mResults->AddFrame(frame);
+  }
+}
+
 void USBPDAnalyzer::DetectUSBPDTransaction() {
   while (true) {
     // This function will consume edges until we find a Preamble
     DetectPreamble();
 
-    if (!DetectSOP()) {
+    SOPTypes sop;
+
+    if (!DetectSOP(&sop)) {
       // Failed to detect a SOP after the preamble. Return to searching for a preamble
       continue;
     }
 
     uint32_t crc32 = 0x00000000;
-    uint8_t dataObjects = 0;
+    uint8_t numDataObjects = 0;
+    DataMessageTypes dataMessageType = NUM_DATA_MESSAGE;
 
-    if (!DetectHeader(&crc32, &dataObjects)) {
+    if (!DetectHeader(sop, &crc32, &numDataObjects, &dataMessageType)) {
       // Failed to detect a header after the SOP. Return to searching for a preamble
       continue;
     }
 
-    for (int i = 0; i < dataObjects; i++) {
-      ReadDataObject(&crc32);
+    switch(dataMessageType) {
+      case DataMessage_Source_Capabilities: {
+        ReadSourceCapabilities(&crc32, numDataObjects);
+      } break;
+
+      default: {
+        for (int i = 0; i < numDataObjects; i++) {
+          ReadDataObject(&crc32);
+        }
+      } break;
     }
 
     if (!DetectCRC32(&crc32)) {
