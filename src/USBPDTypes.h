@@ -29,6 +29,8 @@ enum FrameType {
 
   FRAME_TYPE_REQUEST_DATA_OBJECT,
 
+  FRAME_TYPE_VDM_HEADER,
+
   NUM_FRAME_TYPE
 };
 
@@ -137,8 +139,17 @@ enum ControlMessageTypes {
     ControlMessage_VCONN_Swap,
     ControlMessage_Wait,
     ControlMessage_Soft_Reset,
-    ControlMessage_Reserved14,
-    ControlMessage_Reserved15,
+    ControlMessage_Data_Reset,
+    ControlMessage_Data_Reset_Complete,
+    ControlMessage_Not_Supported,
+    ControlMessage_Get_Source_Cap_Extended,
+    ControlMessage_Get_Status,
+    ControlMessage_FR_Swap,
+    ControlMessage_Get_PPS_Status,
+    ControlMessage_Get_Country_Codes,
+    ControlMessage_Get_Sink_Cap_Extended,
+    ControlMessage_Get_Source_Info,
+    ControlMessage_Get_Revision,
 
     NUM_CONTROL_MESSAGE
 };
@@ -158,8 +169,17 @@ static const char* ControlMessageNames[NUM_CONTROL_MESSAGE] = {
     "ControlMessage_VCONN_Swap",
     "ControlMessage_Wait",
     "ControlMessage_Soft_Reset",
-    "ControlMessage_Reserved14",
-    "ControlMessage_Reserved15",
+    "ControlMessage_Data_Reset",
+    "ControlMessage_Data_Reset_Complete",
+    "ControlMessage_Not_Supported",
+    "ControlMessage_Get_Source_Cap_Extended",
+    "ControlMessage_Get_Status",
+    "ControlMessage_FR_Swap",
+    "ControlMessage_Get_PPS_Status",
+    "ControlMessage_Get_Country_Codes",
+    "ControlMessage_Get_Sink_Cap_Extended",
+    "ControlMessage_Get_Source_Info",
+    "ControlMessage_Get_Revision",
 };
 
 enum DataMessageTypes {
@@ -168,14 +188,14 @@ enum DataMessageTypes {
     DataMessage_Request,
     DataMessage_BIST,
     DataMessage_Sink_Capabilities,
-    DataMessage_Reserved5,
-    DataMessage_Reserved6,
-    DataMessage_Reserved7,
-    DataMessage_Reserved8,
-    DataMessage_Reserved9,
-    DataMessage_Reserved10,
-    DataMessage_Reserved11,
-    DataMessage_Reserved12,
+    DataMessage_BatteryStatus,
+    DataMessage_Alert,
+    DataMessage_Get_Country_Info,
+    DataMessage_Enter_USB,
+    DataMessage_EPR_Request,
+    DataMessage_EPR_Mode,
+    DataMessage_Source_Info,
+    DataMessage_Revision,
     DataMessage_Reserved13,
     DataMessage_Reserved14,
     DataMessage_Vendor_Defined,
@@ -189,14 +209,14 @@ static const char* DataMessageNames[NUM_DATA_MESSAGE] = {
     "DataMessage_Request",
     "DataMessage_BIST",
     "DataMessage_Sink_Capabilities",
-    "DataMessage_Reserved5",
-    "DataMessage_Reserved6",
-    "DataMessage_Reserved7",
-    "DataMessage_Reserved8",
-    "DataMessage_Reserved9",
-    "DataMessage_Reserved10",
-    "DataMessage_Reserved11",
-    "DataMessage_Reserved12",
+    "DataMessage_BatteryStatus",
+    "DataMessage_Alert",
+    "DataMessage_Get_Country_Info",
+    "DataMessage_Enter_USB",
+    "DataMessage_EPR_Request",
+    "DataMessage_EPR_Mode",
+    "DataMessage_Source_Info",
+    "DataMessage_Revision",
     "DataMessage_Reserved13",
     "DataMessage_Reserved14",
     "DataMessage_Vendor_Defined",
@@ -247,6 +267,113 @@ enum APDOType {
     APDOType_EPRAdjustableVoltageSupply,
 
     NUM_APDO_TYPE
+};
+
+enum VDMType {
+    VDMType_Unstructured,
+    VDMType_Structured,
+
+    NUM_VDM_TYPE
+};
+
+enum StructuredVDMVersion {
+    StructuredVDMVersion_1P0,
+    StructuredVDMVersion_2P0,
+
+    NUM_STRUCTURED_VDM_VERSION
+};
+
+static const char*StructuredVDMVersionNames[NUM_STRUCTURED_VDM_VERSION] = {
+    "1.0",
+    "2.0",
+};
+
+enum StructuredVDMCommandType {
+    StructuredVDMCommandType_REQ,
+    StructuredVDMCommandType_ACK,
+    StructuredVDMCommandType_NAK,
+    StructuredVDMCommandType_BUSY,
+
+    NUM_STRUCTURED_VDM_COMMAND_TYPE
+};
+
+static const char* StructuredVDMCommandTypeNames[NUM_STRUCTURED_VDM_COMMAND_TYPE] = {
+    "REQ",
+    "ACK",
+    "NAK",
+    "BUSY",
+};
+
+enum StructuredVDMCommand {
+    StructuredVDMCommand_Reserved,
+    StructuredVDMCommand_DiscoverIdentity,
+    StructuredVDMCommand_DiscoverSVIDs,
+    StructuredVDMCommand_DiscoverModes,
+    StructuredVDMCommand_EnterMode,
+    StructuredVDMCommand_ExitMode,
+    StructuredVDMCommand_Attention,
+    StructuredVDMCommand_Reserved7,
+    StructuredVDMCommand_Reserved8,
+    StructuredVDMCommand_Reserved9,
+    StructuredVDMCommand_Reserved10,
+    StructuredVDMCommand_Reserved11,
+    StructuredVDMCommand_Reserved12,
+    StructuredVDMCommand_Reserved13,
+    StructuredVDMCommand_Reserved14,
+    StructuredVDMCommand_Reserved15,
+    StructuredVDMCommand_SVID16,
+    StructuredVDMCommand_SVID17,
+    StructuredVDMCommand_SVID18,
+    StructuredVDMCommand_SVID19,
+    StructuredVDMCommand_SVID20,
+    StructuredVDMCommand_SVID21,
+    StructuredVDMCommand_SVID22,
+    StructuredVDMCommand_SVID23,
+    StructuredVDMCommand_SVID24,
+    StructuredVDMCommand_SVID25,
+    StructuredVDMCommand_SVID26,
+    StructuredVDMCommand_SVID27,
+    StructuredVDMCommand_SVID28,
+    StructuredVDMCommand_SVID29,
+    StructuredVDMCommand_SVID30,
+    StructuredVDMCommand_SVID31,
+
+    NUM_STRUCTURED_VDM_COMMAND
+};
+
+static const char* StructuredVDMCommandNames[NUM_STRUCTURED_VDM_COMMAND] = {
+    "Reserved",
+    "DiscoverIdentity",
+    "DiscoverSVIDs",
+    "DiscoverModes",
+    "EnterMode",
+    "ExitMode",
+    "Attention",
+    "Reserved7",
+    "Reserved8",
+    "Reserved9",
+    "Reserved10",
+    "Reserved11",
+    "Reserved12",
+    "Reserved13",
+    "Reserved14",
+    "Reserved15",
+    "SVID16",
+    "SVID17",
+    "SVID18",
+    "SVID19",
+    "SVID20",
+    "SVID21",
+    "SVID22",
+    "SVID23",
+    "SVID24",
+    "SVID25",
+    "SVID26",
+    "SVID27",
+    "SVID28",
+    "SVID29",
+    "SVID30",
+    "SVID31",
 };
 
 // Constants for PDOs

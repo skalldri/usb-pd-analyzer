@@ -72,6 +72,7 @@ struct SourcePDO {
   SourcePDO(uint32_t value);
 
   PDOType type;
+  uint32_t raw;
 
   union {
     FixedSupplySourcePDO fixedSupplyPdo;
@@ -82,18 +83,121 @@ struct SourcePDO {
 };
 
 struct Header {
-    Header() = delete;
-    Header(SOPType sop, uint16_t val);
-    
-    SOPType sop;
-    uint8_t numberOfDataObjects;
-    uint8_t messageId;
-    bool portPowerRoleOrCablePlug;
-    PDSpecRevision specRev;
-    bool portDataRole;
-    uint8_t messageType;
+  Header() = delete;
+  Header(SOPType sop, uint16_t val);
+
+  SOPType sop;
+  uint8_t numberOfDataObjects;
+  uint8_t messageId;
+  bool portPowerRoleOrCablePlug;
+  PDSpecRevision specRev;
+  bool portDataRole;
+  uint8_t messageType;
 };
 
+struct FixedSupplyRequest {
+  FixedSupplyRequest(uint32_t val);
+
+  bool giveBack;
+  bool capabilityMismatch;
+  bool usbCommunicationCapable;
+  bool noUsbSuspend;
+  bool unchunkedExtendedMessagesSupported;
+  bool eprModeCapable;
+
+  uint32_t operatingCurrent_mA;
+
+  union {
+    uint32_t maxOperatingCurrent_mA;  // Max if giveBack is false
+    uint32_t minOperatingCurrent_mA;  // Min if giveBack is true
+  };
 };
+
+// Identical per PD Spec
+typedef FixedSupplyRequest VariableSupplyRequest;
+
+struct BatterySupplyRequest {
+  BatterySupplyRequest(uint32_t val);
+
+  bool giveBack;
+  bool capabilityMismatch;
+  bool usbCommunicationCapable;
+  bool noUsbSuspend;
+  bool unchunkedExtendedMessagesSupported;
+  bool eprModeCapable;
+
+  uint32_t operatingPower_mW;
+
+  union {
+    uint32_t maxOperatingPower_mW;  // Max if giveBack is false
+    uint32_t minOperatingPower_mW;  // Min if giveBack is true
+  };
+};
+
+struct SPRProgrammablePowerSupplyRequest {
+  SPRProgrammablePowerSupplyRequest(uint32_t val);
+
+  bool capabilityMismatch;
+  bool usbCommunicationCapable;
+  bool noUsbSuspend;
+  bool unchunkedExtendedMessagesSupported;
+  bool eprModeCapable;
+
+  uint32_t outputVoltage_mV;
+  uint32_t operatingCurrent_mA;
+};
+
+struct EPRAdjustableVoltageSupplyRequest {
+  EPRAdjustableVoltageSupplyRequest(uint32_t val);
+
+  bool capabilityMismatch;
+  bool usbCommunicationCapable;
+  bool noUsbSuspend;
+  bool unchunkedExtendedMessagesSupported;
+  bool eprModeCapable;
+
+  uint32_t outputVoltage_mV;
+  uint32_t operatingCurrent_mA;
+};
+
+struct Request {
+  Request() = delete;
+  Request(SourcePDO& pdo, uint32_t val);
+
+  uint32_t raw;
+  PDOType type;
+
+  union {
+    FixedSupplyRequest fixedSupplyRequest;
+    VariableSupplyRequest variableSupplyRequest;
+    BatterySupplyRequest batterySupplyRequest;
+    SPRProgrammablePowerSupplyRequest ppsRequest;
+    EPRAdjustableVoltageSupplyRequest avsRequest;
+  };
+};
+
+struct StructuredVDM {
+  StructuredVDM(uint32_t val);
+
+  StructuredVDMVersion version;
+  uint8_t objectPosition;
+  StructuredVDMCommandType commandType;
+  StructuredVDMCommand command;
+};
+
+struct VDMHeader {
+  VDMHeader() = delete;
+  VDMHeader(uint32_t val);
+
+  VDMType type;
+  uint16_t vid;
+
+  union {
+    uint16_t unstructuredData;
+    StructuredVDM structuredData;
+  };
+};
+
+};  // namespace USBPDMessages
 
 #endif  // USBPD_MESSAGES_H

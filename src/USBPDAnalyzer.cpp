@@ -5,7 +5,6 @@
 #include <iostream>
 
 #include "USBPDAnalyzerSettings.h"
-
 #include "crc32.h"
 
 using namespace std;
@@ -117,27 +116,27 @@ void USBPDAnalyzer::DetectPreamble() {
 uint8_t USBPDAnalyzer::ReadFiveBit() {
   uint8_t result = 0;
 
-  //cout << "Reading 5 bits: ";
+  // cout << "Reading 5 bits: ";
 
   for (int i = 0; i < 5; i++) {
     bool bit = ReadBiphaseMarkCodeBit();
 
-    //cout << (bit ? 1 : 0) << ", ";
+    // cout << (bit ? 1 : 0) << ", ";
 
     // Bits are read LSB -> MSB off the wire
     result |= ((bit ? 0x1 : 0x0) << i);
   }
 
-  //cout << endl;
+  // cout << endl;
 
   return result;
 }
 
 /**
  * @brief Use the fiveToFourBitLUT to convert a five-bit input number into a 4-bit output number
- * 
- * @param fiveBit 
- * @return uint8_t 
+ *
+ * @param fiveBit
+ * @return uint8_t
  */
 uint8_t USBPDAnalyzer::ConvertFiveBitToFourBit(uint8_t fiveBit) {
   if (fiveToFourBitLUT.count(fiveBit & 0x1F) == 0) {
@@ -201,7 +200,8 @@ uint32_t USBPDAnalyzer::ReadDataObject(uint32_t* currentCrc, bool addFrame) {
 
   uint32_t dataObject = (byte3 << 24) | (byte2 << 16) | (byte1 << 8) | byte0;
 
-  uint32_t remainder = crc32(*currentCrc, (const uint8_t*)&dataObject, sizeof(uint32_t), usbCrcPolynomial);
+  uint32_t remainder =
+      crc32(*currentCrc, (const uint8_t*)&dataObject, sizeof(uint32_t), usbCrcPolynomial);
   *currentCrc = remainder;
 
   if (addFrame) {
@@ -225,12 +225,12 @@ bool USBPDAnalyzer::DetectSOP(SOPType* sop) {
 
   U64 startOfSop = mSerial->GetSampleNumber();
 
-  //cout << "Reading bitstream: ";
+  // cout << "Reading bitstream: ";
   for (int i = 0; i < numKcodeInSOP; i++) {
     kcode[i] = ReadFiveBit();
-    //cout << (int)kcode[i] << ", ";
+    // cout << (int)kcode[i] << ", ";
   }
-  //cout << endl;
+  // cout << endl;
 
   U64 endOfSop = mSerial->GetSampleNumber();
 
@@ -240,11 +240,11 @@ bool USBPDAnalyzer::DetectSOP(SOPType* sop) {
     // Which KCode should we detect for this SOP type?
     const KCODEType* kcodesForSop = sop_map[i];
 
-    //cout << "Looking for KCODE sequence: ";
-    //for (int k = 0; k < numKcodeInSOP; k++) {
-    //  cout << kcodesForSop[k] << ", ";
-    //}
-    //cout << endl;
+    // cout << "Looking for KCODE sequence: ";
+    // for (int k = 0; k < numKcodeInSOP; k++) {
+    //   cout << kcodesForSop[k] << ", ";
+    // }
+    // cout << endl;
 
     // How many KCodes matched? If we find 3, we can proceed
     int kcodesFound = 0;
@@ -307,7 +307,10 @@ bool USBPDAnalyzer::DetectSOP(SOPType* sop) {
   return (detectedSop != NUM_SOP_TYPE);
 }
 
-bool USBPDAnalyzer::DetectHeader(SOPType sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType) {
+bool USBPDAnalyzer::DetectHeader(SOPType sop,
+                                 uint32_t* currentCrc,
+                                 uint8_t* dataObjects,
+                                 DataMessageTypes* dataMsgType) {
   U64 startOfHeader = mSerial->GetSampleNumber();
 
   uint8_t lsb = ReadDecodedByte();
@@ -317,14 +320,14 @@ bool USBPDAnalyzer::DetectHeader(SOPType sop, uint32_t* currentCrc, uint8_t* dat
 
   uint16_t header = (msb << 8) | (lsb);
 
-  *dataObjects = ((header & 0x7000) >> 12); // Bits 14..12 == Number of Data Objects
+  *dataObjects = ((header & 0x7000) >> 12);  // Bits 14..12 == Number of Data Objects
 
   if (*dataObjects > 0) {
-    *dataMsgType = (DataMessageTypes)((header & 0xF)); // Bits 3..0 == Message Type
+    *dataMsgType = (DataMessageTypes)((header & 0xF));  // Bits 3..0 == Message Type
   } else {
     *dataMsgType = NUM_DATA_MESSAGE;
   }
-  
+
   Frame frame;
   frame.mData1 = header;
   frame.mData2 = sop;
@@ -334,7 +337,8 @@ bool USBPDAnalyzer::DetectHeader(SOPType sop, uint32_t* currentCrc, uint8_t* dat
   frame.mEndingSampleInclusive = endOfHeader;
   mResults->AddFrame(frame);
 
-  uint32_t remainder = crc32(*currentCrc, (const uint8_t*)&header, sizeof(uint16_t), usbCrcPolynomial);
+  uint32_t remainder =
+      crc32(*currentCrc, (const uint8_t*)&header, sizeof(uint16_t), usbCrcPolynomial);
 
   *currentCrc = remainder;
 
@@ -385,8 +389,7 @@ bool USBPDAnalyzer::DetectEOP() {
 }
 
 void USBPDAnalyzer::ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numDataObjects) {
-
-  availablePdo.clear();
+  latestSourceCapabilities.clear();
 
   for (int i = 0; i < numDataObjects; i++) {
     U64 startOfSourceCapability = mSerial->GetSampleNumber();
@@ -401,6 +404,8 @@ void USBPDAnalyzer::ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numData
     frame.mStartingSampleInclusive = startOfSourceCapability;
     frame.mEndingSampleInclusive = endOfSourceCapability;
     mResults->AddFrame(frame);
+
+    latestSourceCapabilities.emplace_back(pdo);
   }
 }
 
@@ -411,12 +416,44 @@ void USBPDAnalyzer::ReadRequest(uint32_t* currentCrc) {
 
   Frame frame;
   frame.mData1 = request;
-  frame.mData2 = 0;
+
+  // Which PDO are we referring to from the latestPdo vector?
+  // Note: this value starts at 1!! 0 is invalid per the USB-PD spec,
+  // so a value of 1 indicates the first entry in the latestPdo vector
+  uint8_t objectPosition = EXTRACT_BIT_RANGE(request, 31, 28);
+
+  if (latestSourceCapabilities.size() > (objectPosition - 1)) {
+    USBPDMessages::SourcePDO& referencedPdo = latestSourceCapabilities[objectPosition - 1];
+    frame.mData2 = referencedPdo.raw;
+  } else {
+    // Don't have a SourcePDO to reference...
+    frame.mData2 = 0xFFFFFFFFFFFFFFFF;
+  }
+
   frame.mFlags = 0;
   frame.mType = FRAME_TYPE_REQUEST_DATA_OBJECT;
   frame.mStartingSampleInclusive = startOfRequest;
   frame.mEndingSampleInclusive = endOfRequest;
   mResults->AddFrame(frame);
+}
+
+void USBPDAnalyzer::ReadVendorDefinedMessage(uint32_t* currentCrc, uint8_t numDataObjects) {
+  U64 startOfVdmHeader = mSerial->GetSampleNumber();
+  uint32_t vdmHeader = ReadDataObject(currentCrc, false /* don't add a frame */);
+  U64 endOfVdmHeader = mSerial->GetSampleNumber();
+
+  Frame frame;
+  frame.mData1 = vdmHeader;
+  frame.mData2 = 0;
+  frame.mFlags = 0;
+  frame.mType = FRAME_TYPE_VDM_HEADER;
+  frame.mStartingSampleInclusive = startOfVdmHeader;
+  frame.mEndingSampleInclusive = endOfVdmHeader;
+  mResults->AddFrame(frame);
+
+  for (int i = 0; i < (numDataObjects - 1); i++) {
+    uint32_t vdo = ReadDataObject(currentCrc, true /* add a frame */);
+  }
 }
 
 void USBPDAnalyzer::DetectUSBPDTransaction() {
@@ -440,9 +477,20 @@ void USBPDAnalyzer::DetectUSBPDTransaction() {
       continue;
     }
 
-    switch(dataMessageType) {
+    // TODO: if numDataObjects is still 0, we can't process a data message (since we need at least
+    // one data object)
+
+    switch (dataMessageType) {
       case DataMessage_Source_Capabilities: {
         ReadSourceCapabilities(&crc32, numDataObjects);
+      } break;
+
+      case DataMessage_Request: {
+        ReadRequest(&crc32);
+      } break;
+
+      case DataMessage_Vendor_Defined: {
+        ReadVendorDefinedMessage(&crc32, numDataObjects);
       } break;
 
       default: {

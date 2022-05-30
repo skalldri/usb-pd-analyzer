@@ -8,6 +8,7 @@
 #include "USBPDAnalyzerResults.h"
 #include "USBPDSimulationDataGenerator.h"
 #include "USBPDTypes.h"
+#include "USBPDMessages.h"
 
 class USBPDAnalyzerSettings;
 class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
@@ -41,12 +42,7 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
 
   std::map<uint8_t, uint8_t> fiveToFourBitLUT;
 
-  struct AvailablePDO {
-    PDOType type;
-    APDOType augmentedType;
-  };
-
-  std::vector<AvailablePDO> availablePdo;
+  std::vector<USBPDMessages::SourcePDO> latestSourceCapabilities;
 
  protected:
   void DetectPreamble();
@@ -66,6 +62,8 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
   void ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numDataObjects);
 
   void ReadRequest(uint32_t* currentCrc);
+
+  void ReadVendorDefinedMessage(uint32_t* currentCrc, uint8_t numDataObjects);
 
   bool ReadBiphaseMarkCodeBit();
   void DetectUSBPDTransaction();

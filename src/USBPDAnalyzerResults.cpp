@@ -171,7 +171,7 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
 
             case APDOType_EPRAdjustableVoltageSupply: {
               sprintf(result_str,
-                      "APDO - SPR Programmable Power Supply, "
+                      "APDO - EPR Adjustable Voltage Supply, "
                       "Peak Current Mode=%d, "
                       "MaxVoltage=%d mV, "
                       "MinVoltage=%d mV, "
@@ -198,11 +198,145 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
 
     case FRAME_TYPE_REQUEST_DATA_OBJECT: {
       // RDO is passed in via mData1
-      char calculated[128];
-      char received[128];
-      AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 32, calculated, 128);
-      AnalyzerHelpers::GetNumberString(frame.mData2, display_base, 32, received, 128);
-      AddResultString("CRC32: Calculated=", calculated, ", Received=", received);
+      // The referenced PDO is passed in via mData2, or MAX_UINT64 if invalid reference
+
+      char result_str[1028];
+
+      if (frame.mData2 == 0xFFFFFFFFFFFFFFFF) {
+        sprintf(result_str,
+                "!!! RDO References Invalid PDO Index: %d !!!",
+                EXTRACT_BIT_RANGE(frame.mData1, 31, 28));
+      } else {
+        USBPDMessages::SourcePDO pdo(frame.mData2);
+        USBPDMessages::Request request(pdo, frame.mData1);
+
+        switch (request.type) {
+          case PDOType_FixedSupply: {
+            sprintf(result_str,
+                    "Request - Fixed Supply (%d mV), "
+                    "Give Back Support=%s, "
+                    "Capability Mismatch=%s, "
+                    "USB Comms Capable=%s, "
+                    "No USB Suspend=%s, "
+                    "Unchunked Extended Msgs Supported=%s, "
+                    "EPR Mode Capable=%s, "
+                    "Operating Current=%d mA, "
+                    "%s Operating Current=%d mA, ",
+                    pdo.fixedSupplyPdo.voltage_mV,
+                    request.fixedSupplyRequest.giveBack ? "Yes" : "No",
+                    request.fixedSupplyRequest.capabilityMismatch ? "Yes" : "No",
+                    request.fixedSupplyRequest.usbCommunicationCapable ? "Yes" : "No",
+                    request.fixedSupplyRequest.noUsbSuspend ? "Yes" : "No",
+                    request.fixedSupplyRequest.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                    request.fixedSupplyRequest.eprModeCapable ? "Yes" : "No",
+                    request.fixedSupplyRequest.operatingCurrent_mA,
+                    request.fixedSupplyRequest.giveBack ? "Minimum" : "Maximum",
+                    request.fixedSupplyRequest.giveBack
+                        ? request.fixedSupplyRequest.minOperatingCurrent_mA
+                        : request.fixedSupplyRequest.maxOperatingCurrent_mA);
+          } break;
+
+          case PDOType_Battery: {
+            sprintf(result_str,
+                    "Request - Battery, "
+                    "Give Back Support=%s, "
+                    "Capability Mismatch=%s, "
+                    "USB Comms Capable=%s, "
+                    "No USB Suspend=%s, "
+                    "Unchunked Extended Msgs Supported=%s, "
+                    "EPR Mode Capable=%s, "
+                    "Operating Power=%d mW, "
+                    "%s Operating Power=%d mW, ",
+                    request.batterySupplyRequest.giveBack ? "Yes" : "No",
+                    request.batterySupplyRequest.capabilityMismatch ? "Yes" : "No",
+                    request.batterySupplyRequest.usbCommunicationCapable ? "Yes" : "No",
+                    request.batterySupplyRequest.noUsbSuspend ? "Yes" : "No",
+                    request.batterySupplyRequest.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                    request.batterySupplyRequest.eprModeCapable ? "Yes" : "No",
+                    request.batterySupplyRequest.operatingPower_mW,
+                    request.batterySupplyRequest.giveBack ? "Minimum" : "Maximum",
+                    request.batterySupplyRequest.giveBack
+                        ? request.batterySupplyRequest.minOperatingPower_mW
+                        : request.batterySupplyRequest.maxOperatingPower_mW);
+          } break;
+
+          case PDOType_VariableSupply: {
+            sprintf(result_str,
+                    "Request - Variable Supply, "
+                    "Give Back Support=%s, "
+                    "Capability Mismatch=%s, "
+                    "USB Comms Capable=%s, "
+                    "No USB Suspend=%s, "
+                    "Unchunked Extended Msgs Supported=%s, "
+                    "EPR Mode Capable=%s, "
+                    "Operating Current=%d mA, "
+                    "%s Operating Current=%d mA",
+                    request.variableSupplyRequest.giveBack ? "Yes" : "No",
+                    request.variableSupplyRequest.capabilityMismatch ? "Yes" : "No",
+                    request.variableSupplyRequest.usbCommunicationCapable ? "Yes" : "No",
+                    request.variableSupplyRequest.noUsbSuspend ? "Yes" : "No",
+                    request.variableSupplyRequest.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                    request.variableSupplyRequest.eprModeCapable ? "Yes" : "No",
+                    request.variableSupplyRequest.operatingCurrent_mA,
+                    request.variableSupplyRequest.giveBack ? "Minimum" : "Maximum",
+                    request.variableSupplyRequest.giveBack
+                        ? request.variableSupplyRequest.minOperatingCurrent_mA
+                        : request.variableSupplyRequest.maxOperatingCurrent_mA);
+          } break;
+
+          case PDOType_AugmentedPDO: {
+            switch (pdo.augmentedPdo.type) {
+              case APDOType_SPRProgrammablePowerSupply: {
+                sprintf(result_str,
+                    "Request - Programmable Power Supply, "
+                    "Capability Mismatch=%s, "
+                    "USB Comms Capable=%s, "
+                    "No USB Suspend=%s, "
+                    "Unchunked Extended Msgs Supported=%s, "
+                    "EPR Mode Capable=%s, "
+                    "Output Voltage=%d mV, "
+                    "Operating Current=%d mA",
+                    request.ppsRequest.capabilityMismatch ? "Yes" : "No",
+                    request.ppsRequest.usbCommunicationCapable ? "Yes" : "No",
+                    request.ppsRequest.noUsbSuspend ? "Yes" : "No",
+                    request.ppsRequest.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                    request.ppsRequest.eprModeCapable ? "Yes" : "No",
+                    request.ppsRequest.outputVoltage_mV,
+                    request.ppsRequest.operatingCurrent_mA);
+              } break;
+
+              case APDOType_EPRAdjustableVoltageSupply: {
+                sprintf(result_str,
+                    "Request - Programmable Power Supply, "
+                    "Capability Mismatch=%s, "
+                    "USB Comms Capable=%s, "
+                    "No USB Suspend=%s, "
+                    "Unchunked Extended Msgs Supported=%s, "
+                    "EPR Mode Capable=%s, "
+                    "Output Voltage=%d mV, "
+                    "Operating Current=%d mA",
+                    request.avsRequest.capabilityMismatch ? "Yes" : "No",
+                    request.avsRequest.usbCommunicationCapable ? "Yes" : "No",
+                    request.avsRequest.noUsbSuspend ? "Yes" : "No",
+                    request.avsRequest.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                    request.avsRequest.eprModeCapable ? "Yes" : "No",
+                    request.avsRequest.outputVoltage_mV,
+                    request.avsRequest.operatingCurrent_mA);
+              } break;
+
+              default: {
+                sprintf(result_str, "!!! APDO - Invalid Type %d !!!", pdo.augmentedPdo.type);
+              } break;
+            }
+          } break;
+
+          default: {
+            sprintf(result_str, "!!! PDO - Invalid Type %d !!!", pdo.type);
+          } break;
+        }
+      }
+
+      AddResultString(result_str);
     } break;
 
     case FRAME_TYPE_CRC32: {
@@ -218,6 +352,48 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
     case FRAME_TYPE_EOP: {
       // mData1 == 1 if the received KCODE == the EOP Kcode
       AddResultString(frame.mData1 ? "EOP" : "EOP ERROR");
+    } break;
+
+    case FRAME_TYPE_VDM_HEADER: {
+      // VdmHeader is a 32 bit number that we will fully store within mData1
+
+      USBPDMessages::VDMHeader header((uint32_t)frame.mData1);
+
+      char result_str[1028];
+
+      if (header.type == VDMType_Structured) {
+        sprintf(
+            result_str,
+            "VDM (Structured), "
+            "VID=%16x, "
+            "Version=%s, "
+            "Object Position=%d, "
+            "Command Type=%s, "
+            "Command=%s",
+            header.vid,
+            StructuredVDMVersionNames[header.structuredData.version],
+            header.structuredData.objectPosition,
+            StructuredVDMCommandTypeNames[header.structuredData.commandType],
+            StructuredVDMCommandNames[header.structuredData.command]);
+
+      } else {
+        sprintf(
+            result_str,
+            "VDM (Unstructured), "
+            "VID=%16x, "
+            "Data=%16x, ",
+            header.vid,
+            header.unstructuredData);
+      }
+
+      AddResultString(result_str);
+    } break;
+
+    case FRAME_TYPE_GENERIC_DATA_OBJECT: {
+      // Generic Data Objects are stored in mData1, and are 32 bits
+      char dataObject[128];
+      AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 32, dataObject, 128);
+      AddResultString("DATA=", dataObject);
     } break;
 
     case FRAME_TYPE_BYTE:
