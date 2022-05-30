@@ -38,7 +38,7 @@ class USBPDSimulationDataGenerator {
 
   void CreateBiphaseMarkCodingBit(bool bit);
 
-  void CreateUSBPDControlMessageTransaction(SOPTypes sop,
+  void CreateUSBPDControlMessageTransaction(SOPType sop,
                                             ControlMessageTypes messageType,
                                             PortDataRole dataRole,
                                             PDSpecRevision specRev,
@@ -57,8 +57,8 @@ class USBPDSimulationDataGenerator {
                                       uint8_t portPowerRoleOrCablePlug,
                                       uint8_t messageId);
 
-  void CreateSOP(SOPTypes sop);
-  void CreateKCode(KCODE code);
+  void CreateSOP(SOPType sop);
+  void CreateKCode(KCODEType code);
   uint8_t FourBitToFiveBitEncoder(uint8_t val);
 };
 #endif  // USBPD_SIMULATION_DATA_GENERATOR

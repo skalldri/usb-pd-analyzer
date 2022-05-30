@@ -7,6 +7,7 @@
 
 #include "USBPDAnalyzer.h"
 #include "USBPDAnalyzerSettings.h"
+#include "USBPDMessages.h"
 
 USBPDAnalyzerResults::USBPDAnalyzerResults(USBPDAnalyzer* analyzer, USBPDAnalyzerSettings* settings)
     : AnalyzerResults(),
@@ -14,10 +15,6 @@ USBPDAnalyzerResults::USBPDAnalyzerResults(USBPDAnalyzer* analyzer, USBPDAnalyze
       mAnalyzer(analyzer) {}
 
 USBPDAnalyzerResults::~USBPDAnalyzerResults() {}
-
-#define CHECK_BIT(val, bit) ((val) & (1 << (bit)) != 0)
-#define EXTRACT_BIT_RANGE(val, msb, lsb) \
-  ((((val) & ((0xFFFFFFFF >> (32 - (msb + 1))) & (0xFFFFFFFF << (lsb))))) >> (lsb))
 
 void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                                               Channel& channel,
@@ -59,76 +56,58 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
 
     case FRAME_TYPE_HEADER: {
       // Header is a 16 bit number that we will fully store within mData1
-      // Detected SOPTypes for this transaction is stored in mData2
+      // Detected SOPType for this transaction is stored in mData2
 
-      uint8_t numberOfDataObjects =
-          ((frame.mData1 & 0x7000) >> 12);                // Bits 14..12 == Number of Data Objects
-      uint8_t messageId = ((frame.mData1 & 0xE00) >> 9);  // Bits 11..9 == Message ID
-      uint8_t portPowerRoleOrCablePlug =
-          ((frame.mData1 & 0x100) >>
-           8);  // Bit 8 == Port Power Role (SOP only) / Cable Plug (SOP' and SOP" only)
-      uint8_t specRev = ((frame.mData1 & 0xC0) >> 6);       // Bits 7..6 == Spec Revision
-      uint8_t portDataRole = ((frame.mData1 & 0x20) >> 5);  // Bit 5 == Port Data Role (SOP only)
-      uint8_t messageType = ((frame.mData1 & 0xF));         // Bits 3..0 == Message Type
-
-      SOPTypes sop = (SOPTypes)frame.mData2;
+      SOPType sop = (SOPType)frame.mData2;
+      USBPDMessages::Header header(sop, (uint16_t)frame.mData1);
 
       char msgIdString[128];
-      AnalyzerHelpers::GetNumberString(messageId, display_base, 3, msgIdString, 128);
+      AnalyzerHelpers::GetNumberString(header.messageId, display_base, 3, msgIdString, 128);
 
       char result_str[1028];
 
-      if (sop == SOP) {
-        sprintf(result_str,
-                "Header (%s), Msg Source (Port Data Role)=%s, Port Power Role=%s, MsgID=%s, Spec "
-                "Rev=%s",
-                numberOfDataObjects == 0 ? ControlMessageNames[messageType]
-                                         : DataMessageNames[messageType],
-                (portDataRole == UFP) ? "UFP Port" : "DFP Port",
-                (portPowerRoleOrCablePlug == Source) ? "Source" : "Sink",
-                msgIdString,
-                specRev == REVISION_1P0
-                    ? "PD 1.0"
-                    : (specRev == REVISION_2P0
-                           ? "PD 2.0"
-                           : (specRev == REVISION_3P0 ? "PD 3.0" : "Unknown PD Spec")));
+      if (sop == SOPType_SOP) {
+        sprintf(
+            result_str,
+            "Header (%s), Msg Source (Port Data Role)=%s, Port Power Role=%s, MsgID=%s, Spec "
+            "Rev=%s",
+            header.numberOfDataObjects == 0 ? ControlMessageNames[header.messageType]
+                                            : DataMessageNames[header.messageType],
+            (header.portDataRole == PortDataRole_UFP) ? "UFP Port" : "DFP Port",
+            (header.portPowerRoleOrCablePlug == PortPowerRole_Source) ? "Source" : "Sink",
+            msgIdString,
+            header.specRev == PDSpecRevision_1P0
+                ? "PD 1.0"
+                : (header.specRev == PDSpecRevision_2P0
+                       ? "PD 2.0"
+                       : (header.specRev == PDSpecRevision_3P0 ? "PD 3.0" : "Unknown PD Spec")));
 
       } else {
-        sprintf(result_str,
-                "Header (%s), Msg Source (Cable Plug)=%s, MsgID=%s, Spec Rev=%s",
-                numberOfDataObjects == 0 ? ControlMessageNames[messageType]
-                                         : DataMessageNames[messageType],
-                (portPowerRoleOrCablePlug == MsgSrcPort) ? "DFP/UFP Port" : "Cable Plug",
-                msgIdString,
-                specRev == REVISION_1P0
-                    ? "PD 1.0"
-                    : (specRev == REVISION_2P0
-                           ? "PD 2.0"
-                           : (specRev == REVISION_3P0 ? "PD 3.0" : "Unknown PD Spec")));
+        sprintf(
+            result_str,
+            "Header (%s), Msg Source (Cable Plug)=%s, MsgID=%s, Spec Rev=%s",
+            header.numberOfDataObjects == 0 ? ControlMessageNames[header.messageType]
+                                            : DataMessageNames[header.messageType],
+            (header.portPowerRoleOrCablePlug == CablePlug_MsgSrcPort) ? "DFP/UFP Port"
+                                                                      : "Cable Plug",
+            msgIdString,
+            header.specRev == PDSpecRevision_1P0
+                ? "PD 1.0"
+                : (header.specRev == PDSpecRevision_2P0
+                       ? "PD 2.0"
+                       : (header.specRev == PDSpecRevision_3P0 ? "PD 3.0" : "Unknown PD Spec")));
       }
 
       AddResultString(result_str);
     } break;
 
-    case FRAME_TYPE_POWER_DATA_OBJECT: {
+    case FRAME_TYPE_SOURCE_POWER_DATA_OBJECT: {
       // PDO is a 32 bit number stored in mData1
-
-      uint8_t pdoType = ((frame.mData1 & 0xC0000000) >> 30);  // Bits 31..30 == PDO Type
+      USBPDMessages::SourcePDO pdo(frame.mData1);
       char result_str[1028];
 
-      switch (pdoType) {
-        case FixedSupply: {
-          uint32_t dualRolePower = CHECK_BIT(frame.mData1, 29);
-          uint32_t usbSuspendSupported = CHECK_BIT(frame.mData1, 28);
-          uint32_t unconstrainedPower = CHECK_BIT(frame.mData1, 27);
-          uint32_t usbCommsCapable = CHECK_BIT(frame.mData1, 26);
-          uint32_t dualRoleData = CHECK_BIT(frame.mData1, 25);
-          uint32_t unchunkedExtendedMessagesSupported = CHECK_BIT(frame.mData1, 24);
-          uint32_t eprModeCapable = CHECK_BIT(frame.mData1, 23);
-          uint32_t peakCurrent = EXTRACT_BIT_RANGE(frame.mData1, 21, 20);
-          uint32_t voltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
-
+      switch (pdo.type) {
+        case PDOType_FixedSupply: {
           sprintf(result_str,
                   "PDO - Fixed Supply, "
                   "Dual-Role Power Capable=%s, "
@@ -140,111 +119,95 @@ void USBPDAnalyzerResults::GenerateBubbleText(U64 frame_index,
                   "EPR Mode Capable=%s, "
                   "Peak Current Mode=%d, "
                   "Voltage=%d mV, "
-                  "MaxCurrent=%d mA, "
-                  "Debug=%08x",
-                  dualRolePower ? "Yes" : "No",
-                  dualRoleData ? "Yes" : "No",
-                  usbSuspendSupported ? "Yes" : "No",
-                  usbCommsCapable ? "Yes" : "No",
-                  unconstrainedPower ? "Yes" : "No",
-                  unchunkedExtendedMessagesSupported ? "Yes" : "No",
-                  eprModeCapable ? "Yes" : "No",
-                  peakCurrent,
-                  voltage * usbPdoMilivoltPerStep,
-                  maxCurrent * usbPdoMiliampPerStep,
-                  frame.mData1);
+                  "MaxCurrent=%d mA",
+                  pdo.fixedSupplyPdo.dualRolePower ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.dualRoleData ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.usbSuspendSupported ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.usbCommunicationsCapable ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.unconstrainedPower ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.unchunkedExtendedMessagesSupported ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.eprModeCapable ? "Yes" : "No",
+                  pdo.fixedSupplyPdo.peakCurrentMode,
+                  pdo.fixedSupplyPdo.voltage_mV,
+                  pdo.fixedSupplyPdo.maxCurrent_mA);
         } break;
 
-        case Battery: {
-          uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
-          uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint32_t maxPower = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
-
+        case PDOType_Battery: {
           sprintf(result_str,
                   "PDO - Battery, "
                   "MaxVoltage=%d mV, "
                   "MinVoltage=%d mV, "
                   "MaxPower=%d mW, ",
-                  maxVoltage * usbPdoMilivoltPerStep,
-                  minVoltage * usbPdoMilivoltPerStep,
-                  maxPower * usbPdoMiliwattPerStep);
+                  pdo.batteryPdo.maxVoltage_mV,
+                  pdo.batteryPdo.minVoltage_mV,
+                  pdo.batteryPdo.maxPower_mW);
         } break;
 
-        case VariableSupply: {
-          uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 29, 20);
-          uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 19, 10);
-          uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 9, 0);
-
+        case PDOType_VariableSupply: {
           sprintf(result_str,
                   "PDO - Variable Supply, "
                   "MaxVoltage=%d mV, "
                   "MinVoltage=%d mV, "
                   "MaxCurrent=%d mA, ",
-                  maxVoltage * usbPdoMilivoltPerStep,
-                  minVoltage * usbPdoMilivoltPerStep,
-                  maxCurrent * usbPdoMiliampPerStep);
+                  pdo.variableSupplyPdo.maxVoltage_mV,
+                  pdo.variableSupplyPdo.minVoltage_mV,
+                  pdo.variableSupplyPdo.maxCurrent_mA);
         } break;
 
-        case AugmentedPDO: {
-          APDOType apdoType = (APDOType)EXTRACT_BIT_RANGE(frame.mData1, 29, 28);
-
-          switch (apdoType) {
-            case SPRProgrammablePowerSupply: {
-              uint32_t ppsPowerLimited = CHECK_BIT(frame.mData1, 27);
-              uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 24, 17);
-              uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 15, 8);
-              uint32_t maxCurrent = EXTRACT_BIT_RANGE(frame.mData1, 6, 0);
-
+        case PDOType_AugmentedPDO: {
+          switch (pdo.augmentedPdo.type) {
+            case APDOType_SPRProgrammablePowerSupply: {
               sprintf(result_str,
                       "APDO - SPR Programmable Power Supply, "
                       "PPS Power Limited=%s, "
                       "MaxVoltage=%d mV, "
                       "MinVoltage=%d mV, "
-                      "MaxCurrent=%d mA, "
-                      "Debug=%08x",
-                      ppsPowerLimited ? "Yes" : "No",
-                      maxVoltage * usbApdoMilivoltPerStep,
-                      minVoltage * usbApdoMilivoltPerStep,
-                      maxCurrent * usbApdoMiliampPerStep,
-                      frame.mData1);
+                      "MaxCurrent=%d mA",
+                      pdo.augmentedPdo.ppsPdo.ppsPowerLimited ? "Yes" : "No",
+                      pdo.augmentedPdo.ppsPdo.maxVoltage_mV,
+                      pdo.augmentedPdo.ppsPdo.minVoltage_mV,
+                      pdo.augmentedPdo.ppsPdo.maxCurrent_mA);
             } break;
 
-            case EPRAdjustableVoltageSupply: {
-              uint32_t peakCurrentMode = EXTRACT_BIT_RANGE(frame.mData1, 27, 26);
-              uint32_t maxVoltage = EXTRACT_BIT_RANGE(frame.mData1, 25, 17);
-              uint32_t minVoltage = EXTRACT_BIT_RANGE(frame.mData1, 15, 8);
-              uint32_t maxPower = EXTRACT_BIT_RANGE(frame.mData1, 7, 0);
-
+            case APDOType_EPRAdjustableVoltageSupply: {
               sprintf(result_str,
                       "APDO - SPR Programmable Power Supply, "
                       "Peak Current Mode=%d, "
                       "MaxVoltage=%d mV, "
                       "MinVoltage=%d mV, "
-                      "MaxPower=%d mW, ",
-                      peakCurrentMode,
-                      maxVoltage * usbApdoMilivoltPerStep,
-                      minVoltage * usbApdoMilivoltPerStep,
-                      maxPower * usbApdoMiliwattPerStep);
+                      "PDPPower=%d mW, ",
+                      pdo.augmentedPdo.avsPdo.peakCurrentMode,
+                      pdo.augmentedPdo.avsPdo.maxVoltage_mV,
+                      pdo.augmentedPdo.avsPdo.minVoltage_mV,
+                      pdo.augmentedPdo.avsPdo.pdpPower_mW);
             } break;
 
             default: {
-              sprintf(result_str, "!!! APDO - Invalid Type %d !!!", apdoType);
+              sprintf(result_str, "!!! APDO - Invalid Type %d !!!", pdo.augmentedPdo.type);
             } break;
           }
         } break;
 
         default: {
-          sprintf(result_str, "!!! PDO - Invalid Type %d !!!", pdoType);
+          sprintf(result_str, "!!! PDO - Invalid Type %d !!!", pdo.type);
         } break;
       }
 
       AddResultString(result_str);
     } break;
 
+    case FRAME_TYPE_REQUEST_DATA_OBJECT: {
+      // RDO is passed in via mData1
+      char calculated[128];
+      char received[128];
+      AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 32, calculated, 128);
+      AnalyzerHelpers::GetNumberString(frame.mData2, display_base, 32, received, 128);
+      AddResultString("CRC32: Calculated=", calculated, ", Received=", received);
+    } break;
+
     case FRAME_TYPE_CRC32: {
       // Received CRC32 is passed in mData1
       // CRC32 of all message bytes up to this point is passed in via mData2
-
       char calculated[128];
       char received[128];
       AnalyzerHelpers::GetNumberString(frame.mData1, display_base, 32, calculated, 128);

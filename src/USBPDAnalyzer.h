@@ -41,10 +41,17 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
 
   std::map<uint8_t, uint8_t> fiveToFourBitLUT;
 
+  struct AvailablePDO {
+    PDOType type;
+    APDOType augmentedType;
+  };
+
+  std::vector<AvailablePDO> availablePdo;
+
  protected:
   void DetectPreamble();
-  bool DetectSOP(SOPTypes* sop);
-  bool DetectHeader(SOPTypes sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType);
+  bool DetectSOP(SOPType* sop);
+  bool DetectHeader(SOPType sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType);
 
   bool DetectEOP();
   bool DetectCRC32(uint32_t* currentCrc);
@@ -57,6 +64,8 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
   uint32_t ReadDataObject(uint32_t* currentCrc, bool addFrame = true);
 
   void ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numDataObjects);
+
+  void ReadRequest(uint32_t* currentCrc);
 
   bool ReadBiphaseMarkCodeBit();
   void DetectUSBPDTransaction();

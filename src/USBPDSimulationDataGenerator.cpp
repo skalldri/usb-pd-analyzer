@@ -35,16 +35,16 @@ U32 USBPDSimulationDataGenerator::GenerateSimulationData(
     for (int i = 0; i < NUM_SOP_TYPE; i++) {
       uint8_t portPowerRoleOrCablePlug = 0;
 
-      if ((SOPTypes)i == SOP) {
-        portPowerRoleOrCablePlug = (uint8_t)Source;
+      if ((SOPType)i == SOPType_SOP) {
+        portPowerRoleOrCablePlug = (uint8_t)PortPowerRole_Source;
       } else {
-        portPowerRoleOrCablePlug = (uint8_t)MsgSrcPort;
+        portPowerRoleOrCablePlug = (uint8_t)CablePlug_MsgSrcPort;
       }
 
-      CreateUSBPDControlMessageTransaction((SOPTypes)i,
+      CreateUSBPDControlMessageTransaction((SOPType)i,
                                            ControlMessage_Ping,
-                                           DFP,
-                                           REVISION_2P0,
+                                           PortDataRole_DFP,
+                                           PDSpecRevision_2P0,
                                            portPowerRoleOrCablePlug);
     }
   }
@@ -129,20 +129,20 @@ void USBPDSimulationDataGenerator::CreatePreamble() {
   }
 }
 
-void USBPDSimulationDataGenerator::CreateSOP(SOPTypes sop) {
+void USBPDSimulationDataGenerator::CreateSOP(SOPType sop) {
   if (sop >= NUM_SOP_TYPE) {
     return;
   }
 
-  const KCODE* kcodesInSop = sop_map[sop];
+  const KCODEType* kcodesInSop = sop_map[sop];
 
   for (int i = 0; i < numKcodeInSOP; i++) {
-    KCODE currentKcode = kcodesInSop[i];
+    KCODEType currentKcode = kcodesInSop[i];
     CreateKCode(currentKcode);
   }
 }
 
-void USBPDSimulationDataGenerator::CreateKCode(KCODE code) {
+void USBPDSimulationDataGenerator::CreateKCode(KCODEType code) {
   if (code >= NUM_KCODE) {
     return;
   }
@@ -217,7 +217,7 @@ uint8_t sopPrimeCableMessageId = 0;
 uint8_t sopDoublePrimeCableMessageId = 0;
 
 void USBPDSimulationDataGenerator::CreateUSBPDControlMessageTransaction(
-    SOPTypes sop,
+    SOPType sop,
     ControlMessageTypes messageType,
     PortDataRole dataRole,
     PDSpecRevision specRev,
@@ -240,9 +240,9 @@ void USBPDSimulationDataGenerator::CreateUSBPDControlMessageTransaction(
   uint8_t* sendMessageId = NULL;
   uint8_t* replyMessageId = NULL;
 
-  if (sop == SOP) {
+  if (sop == SOPType_SOP) {
     // Who is sending this message?
-    if (dataRole == UFP) {
+    if (dataRole == PortDataRole_UFP) {
       sendMessageId = &ufpMessageId;
     } else {
       sendMessageId = &dfpMessageId;
@@ -281,7 +281,7 @@ void USBPDSimulationDataGenerator::CreateUSBPDControlMessageTransaction(
   CreateByte((crc >> 24) & 0xFF);
 
   // Send EOP sequence
-  CreateKCode(EOP);
+  CreateKCode(KCODEType_EOP);
 
   // All Frames end with a final edge transition
   mSerialSimulationData.Transition();
@@ -293,30 +293,30 @@ void USBPDSimulationDataGenerator::CreateUSBPDControlMessageTransaction(
 
   CreateSOP(sop);
 
-  if (sop == SOP) {
+  if (sop == SOPType_SOP) {
     // If we are replying to a SOP message, we should swap port data roles
-    if (dataRole == UFP) {
-      dataRole = DFP;
+    if (dataRole == PortDataRole_UFP) {
+      dataRole = PortDataRole_DFP;
       replyMessageId = &dfpMessageId;
     } else {
-      dataRole = UFP;
+      dataRole = PortDataRole_UFP;
       replyMessageId = &ufpMessageId;
     }
 
     // If we are replying to a SOP message, we should swap port power roles
-    if (portPowerRoleOrCablePlug == Sink) {
-      portPowerRoleOrCablePlug = Source;
+    if (portPowerRoleOrCablePlug == PortPowerRole_Sink) {
+      portPowerRoleOrCablePlug = PortPowerRole_Source;
     } else {
-      portPowerRoleOrCablePlug = Sink;
+      portPowerRoleOrCablePlug = PortPowerRole_Sink;
     }
   } else {
     // Replying to a SOP' or SOP" message, dataRole must be 0
     dataRole = (PortDataRole)0;
 
     // If we are replying to a SOP' or SOP" message, we must be the cable
-    portPowerRoleOrCablePlug = MsgSrcPlug;
+    portPowerRoleOrCablePlug = CablePlug_MsgSrcPlug;
 
-    if (sop == SOP_PRIME || sop == SOP_PRIME_DEBUG) {
+    if (sop == SOPType_SOP_PRIME || sop == SOPType_SOP_PRIME_DEBUG) {
       replyMessageId = &sopPrimeCableMessageId;
     } else {
       replyMessageId = &sopDoublePrimeCableMessageId;
@@ -343,5 +343,5 @@ void USBPDSimulationDataGenerator::CreateUSBPDControlMessageTransaction(
   CreateByte((crc >> 24) & 0xFF);
 
   // Send EOP sequence
-  CreateKCode(EOP);
+  CreateKCode(KCODEType_EOP);
 }

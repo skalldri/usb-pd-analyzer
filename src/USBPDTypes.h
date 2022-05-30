@@ -1,6 +1,10 @@
 #ifndef USBPD_TYPES_H
 #define USBPD_TYPES_H
 
+#define CHECK_BIT(val, bit) (((val) & (1 << (bit))) != 0)
+#define EXTRACT_BIT_RANGE(val, msb, lsb) \
+  ((((val) & ((0xFFFFFFFF >> (32 - (msb + 1))) & (0xFFFFFFFF << (lsb))))) >> (lsb))
+
 enum FrameType {
   FRAME_TYPE_PREAMBLE,
 
@@ -21,18 +25,20 @@ enum FrameType {
 
   FRAME_TYPE_GENERIC_DATA_OBJECT,
 
-  FRAME_TYPE_POWER_DATA_OBJECT,
+  FRAME_TYPE_SOURCE_POWER_DATA_OBJECT,
+
+  FRAME_TYPE_REQUEST_DATA_OBJECT,
 
   NUM_FRAME_TYPE
 };
 
-enum KCODE {
-  SYNC_1,
-  SYNC_2,
-  RST_1,
-  RST_2,
-  EOP,
-  SYNC_3,
+enum KCODEType {
+  KCODEType_SYNC_1,
+  KCODEType_SYNC_2,
+  KCODEType_RST_1,
+  KCODEType_RST_2,
+  KCODEType_EOP,
+  KCODEType_SYNC_3,
 
   NUM_KCODE
 };
@@ -47,23 +53,23 @@ static const uint8_t kcode_map[NUM_KCODE] = {
     0x06, // Sync-3 = 00110
 };
 
-enum SOPTypes {
-  SOP,
-  SOP_PRIME,
-  SOP_DOUBLE_PRIME,
-  SOP_PRIME_DEBUG,
-  SOP_DOUBLE_PRIME_DEBUG,
+enum SOPType {
+  SOPType_SOP,
+  SOPType_SOP_PRIME,
+  SOPType_SOP_DOUBLE_PRIME,
+  SOPType_SOP_PRIME_DEBUG,
+  SOPType_SOP_DOUBLE_PRIME_DEBUG,
 
   NUM_SOP_TYPE
 };
 
 const int numKcodeInSOP = 4;
-static const KCODE sop_map[NUM_SOP_TYPE][numKcodeInSOP] = {
-    {SYNC_1, SYNC_1, SYNC_1, SYNC_2}, // SOP
-    {SYNC_1, SYNC_1, SYNC_3, SYNC_3}, // SOP'
-    {SYNC_1, SYNC_3, SYNC_1, SYNC_3}, // SOP"
-    {SYNC_1, RST_2,  RST_2,  SYNC_3}, // SOP' Debug
-    {SYNC_1, RST_2,  SYNC_3, SYNC_2}, // SOP" Debug
+static const KCODEType sop_map[NUM_SOP_TYPE][numKcodeInSOP] = {
+    {KCODEType_SYNC_1, KCODEType_SYNC_1, KCODEType_SYNC_1, KCODEType_SYNC_2}, // SOP
+    {KCODEType_SYNC_1, KCODEType_SYNC_1, KCODEType_SYNC_3, KCODEType_SYNC_3}, // SOP'
+    {KCODEType_SYNC_1, KCODEType_SYNC_3, KCODEType_SYNC_1, KCODEType_SYNC_3}, // SOP"
+    {KCODEType_SYNC_1, KCODEType_RST_2,  KCODEType_RST_2,  KCODEType_SYNC_3}, // SOP' Debug
+    {KCODEType_SYNC_1, KCODEType_RST_2,  KCODEType_SYNC_3, KCODEType_SYNC_2}, // SOP" Debug
 };
 
 static const uint8_t fourBitToFiveBitLUT[16] = {
@@ -131,7 +137,6 @@ enum ControlMessageTypes {
     ControlMessage_VCONN_Swap,
     ControlMessage_Wait,
     ControlMessage_Soft_Reset,
-
     ControlMessage_Reserved14,
     ControlMessage_Reserved15,
 
@@ -163,7 +168,6 @@ enum DataMessageTypes {
     DataMessage_Request,
     DataMessage_BIST,
     DataMessage_Sink_Capabilities,
-
     DataMessage_Reserved5,
     DataMessage_Reserved6,
     DataMessage_Reserved7,
@@ -174,7 +178,6 @@ enum DataMessageTypes {
     DataMessage_Reserved12,
     DataMessage_Reserved13,
     DataMessage_Reserved14,
-
     DataMessage_Vendor_Defined,
 
     NUM_DATA_MESSAGE
@@ -200,30 +203,30 @@ static const char* DataMessageNames[NUM_DATA_MESSAGE] = {
 };
 
 enum PDSpecRevision {
-    REVISION_1P0,
-    REVISION_2P0,
-    REVISION_3P0,
+    PDSpecRevision_1P0,
+    PDSpecRevision_2P0,
+    PDSpecRevision_3P0,
 
     NUM_PD_SPEC_REVISION
 };
 
 enum PortDataRole {
-    UFP, // Upstream-facing Port, the USB Device
-    DFP, // Downstream-facing Port, the USB Host
+    PortDataRole_UFP, // Upstream-facing Port, the USB Device
+    PortDataRole_DFP, // Downstream-facing Port, the USB Host
 
     NUM_PORT_DATA_ROLE
 };
 
 enum PortPowerRole {
-    Sink, // Device will draw power
-    Source, // Device will provide power
+    PortPowerRole_Sink, // Device will draw power
+    PortPowerRole_Source, // Device will provide power
 
     NUM_PORT_POWER_ROLE
 };
 
 enum CablePlug {
-    MsgSrcPort, // Message came from the UFP or DFP port
-    MsgSrcPlug, // Message came from one of the plugs
+    CablePlug_MsgSrcPort, // Message came from the UFP or DFP port
+    CablePlug_MsgSrcPlug, // Message came from one of the plugs
 
     NUM_CABLE_PLUG
 };
@@ -231,17 +234,17 @@ enum CablePlug {
 static const uint32_t usbCrcPolynomial = 0x04C11DB7;
 
 enum PDOType {
-    FixedSupply,
-    Battery,
-    VariableSupply,
-    AugmentedPDO,
+    PDOType_FixedSupply,
+    PDOType_Battery,
+    PDOType_VariableSupply,
+    PDOType_AugmentedPDO,
 
     NUM_PDO_TYPE
 };
 
 enum APDOType {
-    SPRProgrammablePowerSupply,
-    EPRAdjustableVoltageSupply,
+    APDOType_SPRProgrammablePowerSupply,
+    APDOType_EPRAdjustableVoltageSupply,
 
     NUM_APDO_TYPE
 };

@@ -14,6 +14,7 @@ include(ExternalAnalyzerSDK)
 
 set(SOURCES 
 src/crc32.cpp
+src/USBPDMessages.cpp
 src/USBPDAnalyzer.cpp
 src/USBPDAnalyzer.h
 src/USBPDAnalyzerResults.cpp

@@ -30,55 +30,6 @@ void USBPDAnalyzer::SetupResults() {
   mResults->AddChannelBubblesWillAppearOn(mSettings->mInputChannel);
 }
 
-/*
-void USBPDAnalyzer::WorkerThread() {
-  mSampleRateHz = GetSampleRate();
-
-  mSerial = GetAnalyzerChannelData(mSettings->mInputChannel);
-
-  if (mSerial->GetBitState() == BIT_LOW) mSerial->AdvanceToNextEdge();
-
-  U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
-  U32 samples_to_first_center_of_first_data_bit =
-      U32(1.5 * double(mSampleRateHz) / double(mSettings->mBitRate));
-
-  for (;;) {
-    U8 data = 0;
-    U8 mask = 1 << 7;
-
-    mSerial->AdvanceToNextEdge();  // falling edge -- beginning of the start bit
-
-    U64 starting_sample = mSerial->GetSampleNumber();
-
-    mSerial->Advance(samples_to_first_center_of_first_data_bit);
-
-    for (U32 i = 0; i < 8; i++) {
-      // let's put a dot exactly where we sample this bit:
-      mResults->AddMarker(mSerial->GetSampleNumber(),
-                          AnalyzerResults::Dot,
-                          mSettings->mInputChannel);
-
-      if (mSerial->GetBitState() == BIT_HIGH) data |= mask;
-
-      mSerial->Advance(samples_per_bit);
-
-      mask = mask >> 1;
-    }
-
-    // we have a byte to save.
-    Frame frame;
-    frame.mData1 = data;
-    frame.mFlags = 0;
-    frame.mStartingSampleInclusive = starting_sample;
-    frame.mEndingSampleInclusive = mSerial->GetSampleNumber();
-
-    mResults->AddFrame(frame);
-    mResults->CommitResults();
-    ReportProgress(frame.mEndingSampleInclusive);
-  }
-}
-*/
-
 // Needs to start on an edge!
 bool USBPDAnalyzer::ReadBiphaseMarkCodeBit() {
   U32 samples_per_bit = mSampleRateHz / mSettings->mBitRate;
@@ -269,7 +220,7 @@ uint32_t USBPDAnalyzer::ReadDataObject(uint32_t* currentCrc, bool addFrame) {
   return dataObject;
 }
 
-bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
+bool USBPDAnalyzer::DetectSOP(SOPType* sop) {
   uint8_t kcode[numKcodeInSOP] = {0};
 
   U64 startOfSop = mSerial->GetSampleNumber();
@@ -283,11 +234,11 @@ bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
 
   U64 endOfSop = mSerial->GetSampleNumber();
 
-  SOPTypes detectedSop = NUM_SOP_TYPE;
+  SOPType detectedSop = NUM_SOP_TYPE;
 
   for (int i = 0; i < NUM_SOP_TYPE; i++) {
     // Which KCode should we detect for this SOP type?
-    const KCODE* kcodesForSop = sop_map[i];
+    const KCODEType* kcodesForSop = sop_map[i];
 
     //cout << "Looking for KCODE sequence: ";
     //for (int k = 0; k < numKcodeInSOP; k++) {
@@ -299,7 +250,7 @@ bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
     int kcodesFound = 0;
     for (int k = 0; k < numKcodeInSOP; k++) {
       // Which KCode are we currently looking for in this SOP sequence?
-      KCODE currentKcode = kcodesForSop[k];
+      KCODEType currentKcode = kcodesForSop[k];
 
       // What is the actual 5-bit value for that KCode?
       uint8_t kcodeValue = kcode_map[currentKcode];
@@ -311,7 +262,7 @@ bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
 
     // Gottem
     if (kcodesFound >= 3) {
-      detectedSop = (SOPTypes)i;
+      detectedSop = (SOPType)i;
       break;
     }
   }
@@ -322,23 +273,23 @@ bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
   frame.mFlags = 0;
 
   switch (detectedSop) {
-    case SOP:
+    case SOPType_SOP:
       frame.mType = FRAME_TYPE_SOP;
       break;
 
-    case SOP_PRIME:
+    case SOPType_SOP_PRIME:
       frame.mType = FRAME_TYPE_SOP_PRIME;
       break;
 
-    case SOP_DOUBLE_PRIME:
+    case SOPType_SOP_DOUBLE_PRIME:
       frame.mType = FRAME_TYPE_SOP_DOUBLE_PRIME;
       break;
 
-    case SOP_PRIME_DEBUG:
+    case SOPType_SOP_PRIME_DEBUG:
       frame.mType = FRAME_TYPE_SOP_PRIME_DEBUG;
       break;
 
-    case SOP_DOUBLE_PRIME_DEBUG:
+    case SOPType_SOP_DOUBLE_PRIME_DEBUG:
       frame.mType = FRAME_TYPE_SOP_DOUBLE_PRIME_DEBUG;
       break;
 
@@ -356,7 +307,7 @@ bool USBPDAnalyzer::DetectSOP(SOPTypes* sop) {
   return (detectedSop != NUM_SOP_TYPE);
 }
 
-bool USBPDAnalyzer::DetectHeader(SOPTypes sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType) {
+bool USBPDAnalyzer::DetectHeader(SOPType sop, uint32_t* currentCrc, uint8_t* dataObjects, DataMessageTypes* dataMsgType) {
   U64 startOfHeader = mSerial->GetSampleNumber();
 
   uint8_t lsb = ReadDecodedByte();
@@ -422,7 +373,7 @@ bool USBPDAnalyzer::DetectEOP() {
   U64 endOfEop = mSerial->GetSampleNumber();
 
   Frame frame;
-  frame.mData1 = (kcode == kcode_map[EOP]);
+  frame.mData1 = (kcode == kcode_map[KCODEType_EOP]);
   frame.mData2 = 0;
   frame.mFlags = 0;
   frame.mType = FRAME_TYPE_EOP;
@@ -434,6 +385,9 @@ bool USBPDAnalyzer::DetectEOP() {
 }
 
 void USBPDAnalyzer::ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numDataObjects) {
+
+  availablePdo.clear();
+
   for (int i = 0; i < numDataObjects; i++) {
     U64 startOfSourceCapability = mSerial->GetSampleNumber();
     uint32_t pdo = ReadDataObject(currentCrc, false /* don't add a frame */);
@@ -443,11 +397,26 @@ void USBPDAnalyzer::ReadSourceCapabilities(uint32_t* currentCrc, uint8_t numData
     frame.mData1 = pdo;
     frame.mData2 = 0;
     frame.mFlags = 0;
-    frame.mType = FRAME_TYPE_POWER_DATA_OBJECT;
+    frame.mType = FRAME_TYPE_SOURCE_POWER_DATA_OBJECT;
     frame.mStartingSampleInclusive = startOfSourceCapability;
     frame.mEndingSampleInclusive = endOfSourceCapability;
     mResults->AddFrame(frame);
   }
+}
+
+void USBPDAnalyzer::ReadRequest(uint32_t* currentCrc) {
+  U64 startOfRequest = mSerial->GetSampleNumber();
+  uint32_t request = ReadDataObject(currentCrc, false /* don't add a frame */);
+  U64 endOfRequest = mSerial->GetSampleNumber();
+
+  Frame frame;
+  frame.mData1 = request;
+  frame.mData2 = 0;
+  frame.mFlags = 0;
+  frame.mType = FRAME_TYPE_REQUEST_DATA_OBJECT;
+  frame.mStartingSampleInclusive = startOfRequest;
+  frame.mEndingSampleInclusive = endOfRequest;
+  mResults->AddFrame(frame);
 }
 
 void USBPDAnalyzer::DetectUSBPDTransaction() {
@@ -455,7 +424,7 @@ void USBPDAnalyzer::DetectUSBPDTransaction() {
     // This function will consume edges until we find a Preamble
     DetectPreamble();
 
-    SOPTypes sop;
+    SOPType sop;
 
     if (!DetectSOP(&sop)) {
       // Failed to detect a SOP after the preamble. Return to searching for a preamble
