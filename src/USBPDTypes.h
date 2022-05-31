@@ -376,6 +376,75 @@ static const char* StructuredVDMCommandNames[NUM_STRUCTURED_VDM_COMMAND] = {
     "SVID31",
 };
 
+enum SOPProductTypeUfp {
+  SOPProductTypeUfp_NotUFP,
+  SOPProductTypeUfp_PDUSBHub,
+  SOPProductTypeUfp_PDUSBPeripheral,
+  SOPProductTypeUfp_PSD,
+
+  NUM_SOP_PRODUCT_TYPE_UFP
+};
+
+enum SOPProductTypeDfp {
+  SOPProductTypeUfp_NotDFP,
+  SOPProductTypeUfp_PDUSBHub,
+  SOPProductTypeUfp_PDUSBHost,
+  SOPProductTypeUfp_PowerBrick,
+
+  NUM_SOP_PRODUCT_TYPE_UFP
+};
+
+enum SOPPrimeProductType {
+  SOPPrimeProductType_NotCablePlug_VPD, // VPD == VCONN Powered Device
+  SOPPrimeProductType_Reserved1,
+  SOPPrimeProductType_Reserved2,
+  SOPPrimeProductType_PassiveCable,
+  SOPPrimeProductType_ActiveCable,
+  SOPPrimeProductType_Reserved5,
+  SOPPrimeProductType_VCONNPoweredDevice,
+
+  NUM_SOP_PRIME_PRODUCT_TYPE
+};
+
+enum ConnectorType {
+  ConnectorType_ReservedLegacy,
+  ConnectorType_Reserved1,
+  ConnectorType_USBCReceptable,
+  ConnectorType_USBCPlug,
+
+  NUM_CONNECTOR_TYPE
+};
+
+enum UFPVDOVersion {
+  UFPVDOVersion_Reserved0,
+  UFPVDOVersion_Reserved1,
+  UFPVDOVersion_Reserved2,
+  UFPVDOVersion_1P3,
+
+  NUM_UFP_VDO_VERSION
+};
+
+enum VCONNPower {
+  VCONNPower_1W,
+  VCONNPower_1P5W,
+  VCONNPower_2W,
+  VCONNPower_3W,
+  VCONNPower_4W,
+  VCONNPower_5W,
+  VCONNPower_6W,
+
+  NUM_VCONN_POWER
+};
+
+enum USBHighestSpeed {
+  USBHighestSpeed_2P0,
+  USBHighestSpeed_3P2_Gen1,
+  USBHighestSpeed_3P2_4P0_Gen2,
+  USBHighestSpeed_4P0_Gen3,
+
+  NUM_USB_HIGHEST_SPEED
+};
+
 // Constants for PDOs
 static const int usbPdoMilivoltPerStep = 50;
 static const int usbPdoMiliampPerStep = 10;

@@ -65,6 +65,8 @@ class ANALYZER_EXPORT USBPDAnalyzer : public Analyzer2 {
 
   void ReadVendorDefinedMessage(uint32_t* currentCrc, uint8_t numDataObjects);
 
+  uint8_t ReadDiscoverIdentity(uint32_t* currentCrc, uint8_t numDataObjects);
+
   bool ReadBiphaseMarkCodeBit();
   void DetectUSBPDTransaction();
 };

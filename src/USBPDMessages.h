@@ -198,6 +198,56 @@ struct VDMHeader {
   };
 };
 
+struct IDHeaderVdo {
+  IDHeaderVdo() = delete;
+  IDHeaderVdo(SOPType sop, uint32_t val);
+
+  SOPType sopType;
+
+  bool usbHostCommunicationCapable;
+  bool usbDeviceCommunicationCapable;
+
+  union {
+    SOPProductTypeUfp sopProductTypeUfp;
+    SOPPrimeProductType sopPrimeProductType;
+  };
+
+  bool modalOperationSupported;
+  SOPProductTypeDfp sopProductTypeDfp;
+  ConnectorType connectorType;
+  uint16_t vid;
+};
+
+struct ProductVdo {
+  ProductVdo() = delete;
+  ProductVdo(uint32_t val);
+
+  uint16_t pid;
+  uint16_t bcdDevice;
+};
+
+struct UFPVdo {
+  UFPVdo() = delete;
+  UFPVdo(uint32_t val);
+
+  UFPVDOVersion version;
+  bool usb2p0DeviceCapable;
+  bool usb2p0DeviceCapableBillboard;
+  bool usb3p2DeviceCapable;
+  bool usb4p0DeviceCapable;
+
+  VCONNPower vconnPower;
+  bool vconnRequired;
+  bool vbusRequired;
+
+  bool tbt3AltModeSupport;
+  bool pinReconfigureAltModeSupport;
+  bool noPinReconfigureAltModeSupport;
+
+  USBHighestSpeed highestSpeed;
+};
+
 };  // namespace USBPDMessages
 
 #endif  // USBPD_MESSAGES_H
+

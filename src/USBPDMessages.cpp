@@ -212,3 +212,28 @@ VDMHeader::VDMHeader(uint32_t val) {
     unstructuredData = EXTRACT_BIT_RANGE(val, 14, 0);
   }
 }
+
+IDHeaderVdo::IDHeaderVdo(SOPType sop, uint32_t val) {
+  sopType = sop;
+
+  usbHostCommunicationCapable = CHECK_BIT(val, 31);
+  usbDeviceCommunicationCapable = CHECK_BIT(val, 30);
+
+  if (sopType == SOPType_SOP) {
+    sopProductTypeUfp = (SOPProductTypeUfp)EXTRACT_BIT_RANGE(val, 29, 27);
+  } else {
+    sopPrimeProductType = (SOPPrimeProductType)EXTRACT_BIT_RANGE(val, 29, 27);
+  }
+
+  modalOperationSupported = CHECK_BIT(val, 26);
+
+  sopProductTypeDfp = (SOPProductTypeDfp)EXTRACT_BIT_RANGE(val, 25, 23);
+  connectorType = (ConnectorType)EXTRACT_BIT_RANGE(val, 22, 21);
+
+  vid = EXTRACT_BIT_RANGE(val, 15, 0);
+}
+
+ProductVdo::ProductVdo(uint32_t val) {
+  pid = EXTRACT_BIT_RANGE(val, 31, 16);
+  bcdDevice = EXTRACT_BIT_RANGE(val, 15, 0);
+}

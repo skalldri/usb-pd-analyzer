@@ -437,19 +437,55 @@ void USBPDAnalyzer::ReadRequest(uint32_t* currentCrc) {
   mResults->AddFrame(frame);
 }
 
+/**
+ * @brief Read the VDO payloads for an ACK'd "DiscoverIdentity" message.
+ *
+ * @param currentCrc the current payload CRC. this will be updated ad more Data Objects are read
+ * from the bus.
+ * @param numDataObjects the number of data objects _remaining_ to be read from the DiscoverIdentity
+ * message, without including the VDM Header
+ * @return uint8_t the number of data objects remaining to be read from the bus. 0 on success,
+ * positive values indicate that the DiscoverIdentify payload could not be processed
+ */
+uint8_t USBPDAnalyzer::ReadDiscoverIdentity(uint32_t* currentCrc, uint8_t numDataObjects) {
+  if (numDataObjects < 3) {
+    cout << "Invalid DiscoverIdentity command, must have at least 3 data objects, got " << std::dec << numDataObjects << endl;
+    return numDataObjects;
+  }
+
+  // Read ID Header VDO
+
+  // Read Cert Stat VDO
+
+  // Read Product VDO
+
+  // Read 0-3 Product Type VDOs
+
+  return 0;
+}
+
+/**
+ * @brief Read a Vendor Defined Message once one has been itentified by the PD Message Header
+ *
+ * @param currentCrc the current payload CRC. this will be updated ad more Data Objects are read
+ * from the bus.
+ * @param numDataObjects the number of Data Objects identified in the PD Message header
+ */
 void USBPDAnalyzer::ReadVendorDefinedMessage(uint32_t* currentCrc, uint8_t numDataObjects) {
   U64 startOfVdmHeader = mSerial->GetSampleNumber();
-  uint32_t vdmHeader = ReadDataObject(currentCrc, false /* don't add a frame */);
+  uint32_t vdmHeaderData = ReadDataObject(currentCrc, false /* don't add a frame */);
   U64 endOfVdmHeader = mSerial->GetSampleNumber();
 
   Frame frame;
-  frame.mData1 = vdmHeader;
+  frame.mData1 = vdmHeaderData;
   frame.mData2 = 0;
   frame.mFlags = 0;
   frame.mType = FRAME_TYPE_VDM_HEADER;
   frame.mStartingSampleInclusive = startOfVdmHeader;
   frame.mEndingSampleInclusive = endOfVdmHeader;
   mResults->AddFrame(frame);
+
+  USBPDMessages::VDMHeader vdmHeader(vdmHeaderData);
 
   for (int i = 0; i < (numDataObjects - 1); i++) {
     uint32_t vdo = ReadDataObject(currentCrc, true /* add a frame */);
